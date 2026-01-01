@@ -1,0 +1,1 @@
+// Epidemic Zone Entity
