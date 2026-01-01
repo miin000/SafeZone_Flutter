@@ -1,23 +1,71 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mobile_flutter/presentation/screens/home/home_screen.dart';
 import 'package:mobile_flutter/presentation/screens/map/map_screen.dart';
 import 'package:mobile_flutter/presentation/screens/notifications/notifications_screen.dart';
 import 'package:mobile_flutter/presentation/screens/report/report_screen.dart';
 import 'package:mobile_flutter/presentation/screens/profile/profile_screen.dart';
+import 'package:mobile_flutter/presentation/screens/auth/login_screen.dart';
+import 'package:mobile_flutter/presentation/screens/splash/splash_screen.dart';
+import 'package:mobile_flutter/presentation/providers/report_provider.dart';
+import 'package:mobile_flutter/presentation/providers/auth_provider.dart';
 
 class SafeZoneApp extends StatelessWidget {
   const SafeZoneApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SafeZone',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ReportProvider()),
+      ],
+      child: MaterialApp(
+        title: 'SafeZone',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          useMaterial3: true,
+        ),
+        home: const AuthWrapper(),
       ),
-      home: const MainScreen(),
+    );
+  }
+}
+
+// Wrapper to handle auth state
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Check auth status on app start
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().checkAuthStatus();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        switch (authProvider.status) {
+          case AuthStatus.initial:
+          case AuthStatus.loading:
+            return const SplashScreen();
+          case AuthStatus.authenticated:
+            return const MainScreen();
+          case AuthStatus.unauthenticated:
+          case AuthStatus.error:
+            return const LoginScreen();
+        }
+      },
     );
   }
 }
