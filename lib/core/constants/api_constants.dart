@@ -1,18 +1,27 @@
 // API Constants
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 class ApiConstants {
   ApiConstants._();
 
   // Base URL configuration
   static String get baseUrl {
+    // Web should use the current host to avoid dart:io Platform checks
+    if (kIsWeb) {
+      final scheme = Uri.base.scheme; // http or https
+      final host = Uri.base.host; // e.g., localhost or domain
+      // Prefer explicit API port (3001) used by NestJS backend
+      return '$scheme://$host:3001/api/v1';
+    }
+
     // Android emulator uses 10.0.2.2 to access host machine
-    // iOS simulator and web use localhost
     if (Platform.isAndroid) {
       return 'http://10.0.2.2:3001/api/v1';
-    } else {
-      return 'http://localhost:3001/api/v1';
     }
+
+    // iOS simulator / other platforms use localhost
+    return 'http://localhost:3001/api/v1';
   }
 
   // Timeout durations
