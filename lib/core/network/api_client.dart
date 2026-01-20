@@ -26,7 +26,11 @@ class ApiClient {
         onRequest: (options, handler) async {
           // Add auth token if available
           final token = await StorageUtils.getToken();
-          if (token != null) {
+          print('DEBUG [ApiClient] Token exists: ${token != null && token.isNotEmpty}');
+          if (token != null && token.isNotEmpty) {
+            print('DEBUG [ApiClient] Token (first 30 chars): ${token.substring(0, token.length > 30 ? 30 : token.length)}...');
+          }
+          if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
           return handler.next(options);

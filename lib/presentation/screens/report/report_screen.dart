@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../data/models/report_model.dart';
+import '../../../core/services/geocoding_service.dart';
 import '../../providers/report_provider.dart';
+import '../../providers/location_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/notification_provider.dart';
+import 'location_picker_widget.dart';
+import 'verification_required_dialog.dart';
+import 'detailed_case_report_screen.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -12,18 +20,22 @@ class ReportScreen extends StatefulWidget {
 
 class _ReportScreenState extends State<ReportScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   // Form controllers
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
   final _affectedCountController = TextEditingController(text: '1');
   final _latController = TextEditingController();
   final _lonController = TextEditingController();
-  
+
   // Form state
   String? _selectedDiseaseType;
   final List<String> _selectedSymptoms = [];
-  
+
+  // Location state
+  LatLng? _selectedCaseLocation; // Case/incident location from map
+  LatLng? _reporterLocation; // Reporter's current location
+
   // Disease types
   final List<String> _diseaseTypes = [
     'Sốt xuất huyết',
@@ -35,7 +47,7 @@ class _ReportScreenState extends State<ReportScreen> {
     'Tiêu chảy cấp',
     'Khác',
   ];
-  
+
   // Common symptoms
   final List<String> _availableSymptoms = [
     'Sốt cao',
@@ -64,9 +76,95 @@ class _ReportScreenState extends State<ReportScreen> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    // Get reporter's current location when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _getReporterLocation();
+    });
+  }
+
+  Future<void> _getReporterLocation() async {
+    final locationProvider = context.read<LocationProvider>();
+    await locationProvider.getCurrentLocation();
+
+    if (locationProvider.currentLatLng != null) {
+      setState(() {
+        _reporterLocation = locationProvider.currentLatLng;
+      });
+    }
+  }
+
+  Future<void> _openMapPicker() async {
+    final result = await Navigator.of(context).push<LatLng>(
+      MaterialPageRoute(
+        builder: (context) => LocationPickerDialog(
+          initialLocation: _selectedCaseLocation ?? _reporterLocation,
+          title: 'Chọn vị trí ca bệnh',
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedCaseLocation = result;
+        _latController.text = result.latitude.toStringAsFixed(6);
+        _lonController.text = result.longitude.toStringAsFixed(6);
+      });
+      
+      // Auto-fill address from coordinates
+      _fetchAndSetAddress(result.latitude, result.longitude);
+    }
+  }
+
+  Future<void> _fetchAndSetAddress(double lat, double lon) async {
+    try {
+      final result = await GeocodingService.instance.reverseGeocode(lat, lon);
+      if (mounted && _addressController.text.isEmpty) {
+        setState(() {
+          _addressController.text = result.formattedAddress;
+        });
+      }
+    } catch (e) {
+      // Silently fail - user can still enter address manually
+      print('Failed to fetch address: $e');
+    }
+  }
+
+  void _useCurrentLocationForCase() {
+    if (_reporterLocation != null) {
+      setState(() {
+        _selectedCaseLocation = _reporterLocation;
+        _latController.text = _reporterLocation!.latitude.toStringAsFixed(6);
+        _lonController.text = _reporterLocation!.longitude.toStringAsFixed(6);
+      });
+      
+      // Auto-fill address from coordinates
+      _fetchAndSetAddress(_reporterLocation!.latitude, _reporterLocation!.longitude);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã sử dụng vị trí hiện tại của bạn'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Chưa lấy được vị trí của bạn. Vui lòng đợi hoặc nhập thủ công.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
   Future<void> _submitReport() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (_selectedDiseaseType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -79,7 +177,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
     final lat = double.tryParse(_latController.text);
     final lon = double.tryParse(_lonController.text);
-    
+
     if (lat == null || lon == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -90,13 +188,22 @@ class _ReportScreenState extends State<ReportScreen> {
       return;
     }
 
+    // Check verification status before submitting
+    final isVerified = await VerificationRequiredDialog.show(context);
+    if (!isVerified) {
+      return; // User chose not to verify or cancelled
+    }
+
     final request = CreateReportRequest(
       diseaseType: _selectedDiseaseType!,
       description: _descriptionController.text.trim(),
       lat: lat,
       lon: lon,
-      address: _addressController.text.trim().isNotEmpty 
-          ? _addressController.text.trim() 
+      // Include reporter's current location if available
+      reporterLat: _reporterLocation?.latitude,
+      reporterLon: _reporterLocation?.longitude,
+      address: _addressController.text.trim().isNotEmpty
+          ? _addressController.text.trim()
           : null,
       symptoms: _selectedSymptoms.isNotEmpty ? _selectedSymptoms : null,
       affectedCount: int.tryParse(_affectedCountController.text),
@@ -107,10 +214,14 @@ class _ReportScreenState extends State<ReportScreen> {
 
     if (mounted) {
       if (success) {
+        // Refresh notifications to show the new notification
+        context.read<NotificationProvider>().loadNotifications();
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Gửi báo cáo thành công!'),
+            content: Text('Gửi báo cáo thành công! Kiểm tra tab Thông báo để theo dõi.'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
           ),
         );
         _resetForm();
@@ -135,7 +246,66 @@ class _ReportScreenState extends State<ReportScreen> {
     setState(() {
       _selectedDiseaseType = null;
       _selectedSymptoms.clear();
+      _selectedCaseLocation = null;
+      // Keep reporter location as it doesn't change
     });
+  }
+
+  Widget _buildReportTypeSelector() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Chọn loại báo cáo',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _ReportTypeCard(
+                    icon: Icons.flash_on,
+                    title: 'Báo cáo nhanh',
+                    description: 'Thông tin cơ bản về dịch bệnh',
+                    color: Colors.red,
+                    isSelected: true,
+                    onTap: () {}, // Already on this screen
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ReportTypeCard(
+                    icon: Icons.assignment,
+                    title: 'Chi tiết ca bệnh',
+                    description: 'Thông tin đầy đủ bệnh nhân',
+                    color: Colors.deepOrange,
+                    isSelected: false,
+                    onTap: () async {
+                      final result = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (context) => const DetailedCaseReportScreen(),
+                        ),
+                      );
+                      if (result == true) {
+                        // Report was submitted successfully
+                        _resetForm();
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -164,6 +334,10 @@ class _ReportScreenState extends State<ReportScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Report type selector
+                      _buildReportTypeSelector(),
+                      const SizedBox(height: 16),
+
                       // Header
                       Card(
                         color: Colors.red.shade50,
@@ -171,15 +345,18 @@ class _ReportScreenState extends State<ReportScreen> {
                           padding: const EdgeInsets.all(16),
                           child: Row(
                             children: [
-                              Icon(Icons.warning_amber_rounded, 
-                                   color: Colors.red.shade600, size: 32),
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.red.shade600,
+                                size: 32,
+                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Báo cáo ca bệnh',
+                                      'Báo cáo nhanh',
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
@@ -290,7 +467,9 @@ class _ReportScreenState extends State<ReportScreen> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: _availableSymptoms.map((symptom) {
-                                  final isSelected = _selectedSymptoms.contains(symptom);
+                                  final isSelected = _selectedSymptoms.contains(
+                                    symptom,
+                                  );
                                   return FilterChip(
                                     label: Text(symptom),
                                     selected: isSelected,
@@ -321,82 +500,236 @@ class _ReportScreenState extends State<ReportScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Row(
+                              Row(
                                 children: [
-                                  Icon(Icons.location_on, size: 20),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Vị trí *',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
+                                  const Icon(
+                                    Icons.location_on,
+                                    size: 20,
+                                    color: Colors.red,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'Vị trí ca bệnh *',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  // Reporter location indicator
+                                  if (_reporterLocation != null)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.green.shade200,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.my_location,
+                                            size: 12,
+                                            color: Colors.green.shade700,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Đã lấy vị trí',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.green.shade700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Chọn vị trí nơi xảy ra ca bệnh (có thể khác vị trí hiện tại của bạn)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Quick action buttons
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _openMapPicker,
+                                      icon: const Icon(Icons.map, size: 18),
+                                      label: const Text('Chọn từ bản đồ'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.red.shade600,
+                                        side: BorderSide(
+                                          color: Colors.red.shade300,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _reporterLocation != null
+                                          ? _useCurrentLocationForCase
+                                          : null,
+                                      icon: const Icon(
+                                        Icons.my_location,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Vị trí của tôi'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.blue.shade600,
+                                        side: BorderSide(
+                                          color: Colors.blue.shade300,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _latController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Vĩ độ (Lat)',
-                                        hintText: '21.0285',
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                      ),
-                                      keyboardType: const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                        signed: true,
-                                      ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Nhập vĩ độ';
-                                        }
-                                        final lat = double.tryParse(value);
-                                        if (lat == null || lat < -90 || lat > 90) {
-                                          return 'Không hợp lệ';
-                                        }
-                                        return null;
-                                      },
+
+                              // Selected location display
+                              if (_selectedCaseLocation != null)
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.green.shade200,
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _lonController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Kinh độ (Lon)',
-                                        hintText: '105.8542',
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        color: Colors.green.shade700,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Đã chọn: ${_selectedCaseLocation!.latitude.toStringAsFixed(4)}, ${_selectedCaseLocation!.longitude.toStringAsFixed(4)}',
+                                          style: TextStyle(
+                                            color: Colors.green.shade700,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ),
-                                      keyboardType: const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                        signed: true,
+                                    ],
+                                  ),
+                                ),
+
+                              // Manual coordinate input
+                              ExpansionTile(
+                                tilePadding: EdgeInsets.zero,
+                                title: const Text(
+                                  'Nhập tọa độ thủ công',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                                leading: const Icon(
+                                  Icons.edit_location_alt,
+                                  size: 20,
+                                ),
+                                children: [
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: _latController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Vĩ độ (Lat)',
+                                            hintText: '21.0285',
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 8,
+                                                ),
+                                          ),
+                                          keyboardType:
+                                              const TextInputType.numberWithOptions(
+                                                decimal: true,
+                                                signed: true,
+                                              ),
+                                          validator: (value) {
+                                            if (value == null ||
+                                                value.isEmpty) {
+                                              return 'Nhập vĩ độ';
+                                            }
+                                            final lat = double.tryParse(value);
+                                            if (lat == null ||
+                                                lat < -90 ||
+                                                lat > 90) {
+                                              return 'Không hợp lệ';
+                                            }
+                                            return null;
+                                          },
+                                        ),
                                       ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Nhập kinh độ';
-                                        }
-                                        final lon = double.tryParse(value);
-                                        if (lon == null || lon < -180 || lon > 180) {
-                                          return 'Không hợp lệ';
-                                        }
-                                        return null;
-                                      },
-                                    ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: _lonController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Kinh độ (Lon)',
+                                            hintText: '105.8542',
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 8,
+                                                ),
+                                          ),
+                                          keyboardType:
+                                              const TextInputType.numberWithOptions(
+                                                decimal: true,
+                                                signed: true,
+                                              ),
+                                          validator: (value) {
+                                            if (value == null ||
+                                                value.isEmpty) {
+                                              return 'Nhập kinh độ';
+                                            }
+                                            final lon = double.tryParse(value);
+                                            if (lon == null ||
+                                                lon < -180 ||
+                                                lon > 180) {
+                                              return 'Không hợp lệ';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -487,7 +820,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   ),
                 ),
               ),
-              
+
               // Loading overlay
               if (provider.isLoading)
                 Container(
@@ -516,3 +849,68 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 }
 
+/// Card widget for report type selection
+class _ReportTypeCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ReportTypeCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? color : Colors.grey.shade600,
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? color : Colors.grey.shade700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

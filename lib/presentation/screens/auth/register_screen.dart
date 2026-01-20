@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import 'verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -34,11 +35,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.register(
-      _emailController.text.trim(),
+      _phoneController.text.trim(),
       _passwordController.text,
       _nameController.text.trim(),
-      phone: _phoneController.text.trim().isNotEmpty
-          ? _phoneController.text.trim()
+      email: _emailController.text.trim().isNotEmpty
+          ? _emailController.text.trim()
           : null,
     );
 
@@ -50,13 +51,82 @@ class _RegisterScreenState extends State<RegisterScreen> {
             backgroundColor: Colors.green,
           ),
         );
+        // Show verification prompt dialog
+        if (mounted) {
+          await _showVerificationPrompt();
+        }
         // Pop back, auth state will handle navigation
-        Navigator.pop(context);
+        if (mounted) {
+          Navigator.pop(context);
+        }
       } else if (authProvider.error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(authProvider.error!),
             backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showVerificationPrompt() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.verified_outlined, color: Colors.blue.shade600),
+            const SizedBox(width: 12),
+            const Text('Xác thực tài khoản'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Bạn có muốn xác thực số điện thoại ngay bây giờ không?',
+              style: TextStyle(fontSize: 15),
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Bạn cần xác thực số điện thoại để có thể báo cáo ca bệnh.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Để sau'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Xác thực ngay'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      // Wait a moment to ensure token is saved
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Navigate to phone verification (required)
+      if (mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const VerificationScreen(
+              type: VerificationType.phone,
+              canSkip: false,
+            ),
           ),
         );
       }
@@ -108,11 +178,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Email field
+                        // Phone field (required)
+                        TextFormField(
+                          controller: _phoneController,
+                          decoration: InputDecoration(
+                            labelText: 'Số điện thoại *',
+                            prefixIcon: const Icon(Icons.phone_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          keyboardType: TextInputType.phone,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Vui lòng nhập số điện thoại';
+                            }
+                            if (value.trim().length < 9) {
+                              return 'Số điện thoại không hợp lệ';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Email field (optional)
                         TextFormField(
                           controller: _emailController,
                           decoration: InputDecoration(
-                            labelText: 'Email *',
+                            labelText: 'Email (tùy chọn)',
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -120,29 +213,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Vui lòng nhập email';
-                            }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                .hasMatch(value)) {
-                              return 'Email không hợp lệ';
+                            if (value != null && value.trim().isNotEmpty) {
+                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                  .hasMatch(value)) {
+                                return 'Email không hợp lệ';
+                              }
                             }
                             return null;
                           },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Phone field
-                        TextFormField(
-                          controller: _phoneController,
-                          decoration: InputDecoration(
-                            labelText: 'Số điện thoại',
-                            prefixIcon: const Icon(Icons.phone_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          keyboardType: TextInputType.phone,
                         ),
                         const SizedBox(height: 16),
 

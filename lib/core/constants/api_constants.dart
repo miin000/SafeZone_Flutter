@@ -35,6 +35,7 @@ class ApiConstants {
   static const String profile = '/auth/profile';
   static const String verifyToken = '/auth/verify';
   static const String updateFcmToken = '/auth/fcm-token';
+  static const String verificationStatus = '/auth/verification-status';
   static const String sendEmailOtp = '/auth/send-email-otp';
   static const String verifyEmail = '/auth/verify-email';
   static const String sendPhoneOtp = '/auth/send-phone-otp';
@@ -53,6 +54,8 @@ class ApiConstants {
   static const String zones = '/zones';
   static const String zonesNearby = '/zones/nearby';
   static const String zonesStats = '/zones/stats';
+  static const String zonesCheck = '/zones/check';
+  static const String zonesCheckLocation = '/zones/check-location';
 
   // Post endpoints
   static const String posts = '/posts';

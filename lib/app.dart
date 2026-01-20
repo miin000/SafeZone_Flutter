@@ -9,6 +9,10 @@ import 'package:mobile_flutter/presentation/screens/auth/login_screen.dart';
 import 'package:mobile_flutter/presentation/screens/splash/splash_screen.dart';
 import 'package:mobile_flutter/presentation/providers/report_provider.dart';
 import 'package:mobile_flutter/presentation/providers/auth_provider.dart';
+import 'package:mobile_flutter/presentation/providers/zone_provider.dart';
+import 'package:mobile_flutter/presentation/providers/location_provider.dart';
+import 'package:mobile_flutter/presentation/providers/notification_provider.dart';
+import 'package:mobile_flutter/presentation/widgets/zone_warning_banner.dart';
 
 class SafeZoneApp extends StatelessWidget {
   const SafeZoneApp({super.key});
@@ -19,6 +23,9 @@ class SafeZoneApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ReportProvider()),
+        ChangeNotifierProvider(create: (_) => ZoneProvider()),
+        ChangeNotifierProvider(create: (_) => LocationProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: MaterialApp(
         title: 'SafeZone',
@@ -89,9 +96,26 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Fetch zones and start location tracking for zone warnings
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ZoneProvider>().fetchZones();
+      context.read<LocationProvider>().startTracking();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: Column(
+        children: [
+          // Zone warning banner - shows when user is in epidemic zone
+          const ZoneWarningBanner(),
+          // Main content
+          Expanded(child: _screens[_currentIndex]),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {

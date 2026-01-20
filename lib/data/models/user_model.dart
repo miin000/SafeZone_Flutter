@@ -5,9 +5,9 @@ enum UserRole { user, admin, healthWorker }
 
 class UserModel extends Equatable {
   final String id;
-  final String email;
+  final String? email;
   final String name;
-  final String? phone;
+  final String phone;
   final String? avatarUrl;
   final UserRole role;
   final bool isEmailVerified;
@@ -17,9 +17,9 @@ class UserModel extends Equatable {
 
   const UserModel({
     required this.id,
-    required this.email,
+    this.email,
     required this.name,
-    this.phone,
+    required this.phone,
     this.avatarUrl,
     this.role = UserRole.user,
     this.isEmailVerified = false,
@@ -31,9 +31,9 @@ class UserModel extends Equatable {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] ?? '',
-      email: json['email'] ?? '',
+      email: json['email'],
       name: json['name'] ?? '',
-      phone: json['phone'],
+      phone: json['phone'] ?? '',
       avatarUrl: json['avatarUrl'],
       role: _parseRole(json['role']),
       isEmailVerified: json['isEmailVerified'] ?? false,
