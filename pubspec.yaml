@@ -43,6 +43,16 @@ dependencies:
   
   # Local Storage
   shared_preferences: ^2.2.2
+
+  geolocator: ^10.1.0
+
+  flutter_dotenv: ^5.1.0
+
+  image_picker: ^1.0.4
+
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.0
   
   # Utilities
   equatable: ^2.0.5
@@ -52,6 +62,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  hive_generator: ^2.0.0
+  build_runner: ^2.4.8
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your

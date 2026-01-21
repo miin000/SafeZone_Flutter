@@ -1,21 +1,32 @@
 // API Constants
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 class ApiConstants {
   ApiConstants._();
 
-  // Base URL configuration
   static String get baseUrl {
-    // Android emulator uses 10.0.2.2 to access host machine
-    // iOS simulator and web use localhost
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:3001/api/v1';
-    } else {
+    // Flutter Web
+    if (kIsWeb) {
       return 'http://localhost:3001/api/v1';
+    }
+
+    // Mobile platforms
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      // Android emulator -> host machine
+        return 'http://10.0.2.2:3001/api/v1';
+
+      case TargetPlatform.iOS:
+      // iOS simulator
+        return 'http://localhost:3001/api/v1';
+
+      default:
+      // Windows / macOS / Linux
+        return 'http://localhost:3001/api/v1';
     }
   }
 
-  // Timeout durations
+// Timeout durations
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration sendTimeout = Duration(seconds: 30);
