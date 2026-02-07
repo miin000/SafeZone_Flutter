@@ -38,8 +38,10 @@ class PostModelAdapter extends TypeAdapter<PostModel> {
       final status = statusIndex < PostStatus.values.length
           ? PostStatus.values[statusIndex]
           : PostStatus.pending;
-      final location = reader.readStringOrNull();
-      final diseaseType = reader.readStringOrNull();
+      final locationStr = reader.readString();
+      final location = locationStr.isEmpty ? null : locationStr;
+      final diseaseTypeStr = reader.readString();
+      final diseaseType = diseaseTypeStr.isEmpty ? null : diseaseTypeStr;
       final authorId = reader.readString();
       final helpfulCount = reader.readInt();
       final notHelpfulCount = reader.readInt();
@@ -51,8 +53,8 @@ class PostModelAdapter extends TypeAdapter<PostModel> {
       // Handle updatedAt properly
       DateTime? updatedAt;
       try {
-        final updatedAtStr = reader.readStringOrNull();
-        if (updatedAtStr != null && updatedAtStr.isNotEmpty) {
+        final updatedAtStr = reader.readString();
+        if (updatedAtStr.isNotEmpty) {
           updatedAt = DateTime.parse(updatedAtStr);
         }
       } catch (e) {
@@ -149,24 +151,33 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
 
   @override
   UserModel read(BinaryReader reader) {
+    final id = reader.readString();
+    final emailStr = reader.readString();
+    final name = reader.readString();
+    final phone = reader.readString();
+    final avatarUrlStr = reader.readString();
+    final roleIndex = reader.readByte();
+    final isEmailVerified = reader.readBool();
+    final isPhoneVerified = reader.readBool();
+    
     return UserModel(
-      id: reader.readString(),
-      email: reader.readString(),
-      name: reader.readString(),
-      phone: reader.readStringOrNull(),
-      avatarUrl: reader.readStringOrNull(),
-      role: UserRole.values[reader.readByte()],
-      isEmailVerified: reader.readBool(),
-      isPhoneVerified: reader.readBool(),
+      id: id,
+      email: emailStr.isEmpty ? null : emailStr,
+      name: name,
+      phone: phone,
+      avatarUrl: avatarUrlStr.isEmpty ? null : avatarUrlStr,
+      role: UserRole.values[roleIndex],
+      isEmailVerified: isEmailVerified,
+      isPhoneVerified: isPhoneVerified,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserModel obj) {
     writer.writeString(obj.id);
-    writer.writeString(obj.email);
+    writer.writeString(obj.email ?? '');
     writer.writeString(obj.name);
-    writer.writeString(obj.phone ?? '');
+    writer.writeString(obj.phone);
     writer.writeString(obj.avatarUrl ?? '');
     writer.writeByte(obj.role.index);
     writer.writeBool(obj.isEmailVerified);
@@ -187,13 +198,5 @@ class UserRoleAdapter extends TypeAdapter<UserRole> {
   @override
   void write(BinaryWriter writer, UserRole obj) {
     writer.writeByte(obj.index);
-  }
-}
-
-// Extension for nullable string reading
-extension BinaryReaderExtensions on BinaryReader {
-  String? readStringOrNull() {
-    final hasValue = readBool();
-    return hasValue ? readString() : null;
   }
 }
