@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
-import '../auth/verification_screen.dart';
+import 'package:mobile_flutter/presentation/providers/auth_provider.dart';
+import 'package:mobile_flutter/presentation/providers/settings_provider.dart';
+import 'package:mobile_flutter/data/models/user_model.dart';
+import 'package:mobile_flutter/presentation/screens/profile/edit_profile_screen.dart';
+import 'package:mobile_flutter/presentation/screens/profile/my_reports_screen.dart';
+import 'package:mobile_flutter/presentation/screens/profile/my_posts_screen.dart';
+import 'package:mobile_flutter/presentation/screens/profile/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,63 +19,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch verification status when profile loads
+    // Load settings when profile screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthProvider>().fetchVerificationStatus();
+      context.read<SettingsProvider>().loadSettings();
     });
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Đăng xuất'),
+        content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.read<AuthProvider>().logout();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+    final settingsProvider = context.watch<SettingsProvider>();
+    final user = authProvider.user;
+
+    if (user == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Hồ sơ cá nhân'),
-        backgroundColor: Colors.blue.shade600,
-        foregroundColor: Colors.white,
-      ),
-      body: Consumer<AuthProvider>(
-        builder: (context, authProvider, _) {
-          final user = authProvider.user;
-
-          if (user == null) {
-            return const Center(child: Text('Vui lòng đăng nhập'));
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              await authProvider.fetchProfile();
-              await authProvider.fetchVerificationStatus();
-            },
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // User Info Card
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
+      body: CustomScrollView(
+        slivers: [
+          // Header with user info
+          SliverAppBar(
+            expandedHeight: 200,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.blue.shade600,
+                      Colors.blue.shade400,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
+                          // Avatar
                           CircleAvatar(
-                            radius: 36,
-                            backgroundColor: Colors.blue.shade100,
-                            child: Text(
-                              user.name.isNotEmpty
-                                  ? user.name[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade600,
-                              ),
-                            ),
+                            radius: 40,
+                            backgroundColor: Colors.white,
+                            child: user.avatarUrl != null
+                                ? ClipOval(
+                                    child: Image.network(
+                                      user.avatarUrl!,
+                                      width: 76,
+                                      height: 76,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : Text(
+                                    user.name.substring(0, 1).toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue,
+                                    ),
+                                  ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 20),
+                          // User info
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,8 +118,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Text(
                                   user.name,
                                   style: const TextStyle(
-                                    fontSize: 20,
+                                    fontSize: 24,
                                     fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  user.email ?? '',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white.withOpacity(0.9),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -87,7 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   user.phone,
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.grey.shade600,
+                                    color: Colors.white.withOpacity(0.9),
                                   ),
                                 ),
                               ],
@@ -95,237 +144,374 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Verification Section
-                  const Text(
-                    'Xác thực tài khoản',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Xác thực để có thể báo cáo ca bệnh',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 16),
-                  // Email Verification
-                  _VerificationTile(
-                    icon: Icons.email_outlined,
-                    title: 'Email',
-                    subtitle: user.email ?? 'Chưa cập nhật',
-                    isVerified: authProvider.isEmailVerified,
-                    onTap: authProvider.isEmailVerified
-                        ? null
-                        : () async {
-                            final result = await Navigator.of(context)
-                                .push<bool>(
-                                  MaterialPageRoute(
-                                    builder: (_) => const VerificationScreen(
-                                      type: VerificationType.email,
-                                      canSkip: true,
-                                    ),
-                                  ),
-                                );
-                            if (result == true) {
-                              await authProvider.fetchVerificationStatus();
-                            }
-                          },
-                  ),
-                  const SizedBox(height: 12),
-                  // Phone Verification
-                  _VerificationTile(
-                    icon: Icons.phone_outlined,
-                    title: 'Số điện thoại',
-                    subtitle: user.phone,
-                    isVerified: authProvider.isPhoneVerified,
-                    hasData: user.phone.isNotEmpty,
-                    onTap: authProvider.isPhoneVerified
-                        ? null
-                        : user.phone.isEmpty
-                        ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Vui lòng cập nhật số điện thoại trước',
-                                ),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
-                          }
-                        : () async {
-                            final result = await Navigator.of(context)
-                                .push<bool>(
-                                  MaterialPageRoute(
-                                    builder: (_) => const VerificationScreen(
-                                      type: VerificationType.phone,
-                                      canSkip: true,
-                                    ),
-                                  ),
-                                );
-                            if (result == true) {
-                              await authProvider.fetchVerificationStatus();
-                            }
-                          },
-                  ),
-                  const SizedBox(height: 32),
-                  // Verification Status Banner
-                  if (!authProvider.isFullyVerified)
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.amber.shade200),
-                      ),
-                      child: Row(
+                      const SizedBox(height: 16),
+                      // Verification status
+                      Row(
                         children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: Colors.amber.shade700,
+                          _VerificationBadge(
+                            verified: user.isEmailVerified,
+                            text: 'Email',
                           ),
                           const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Xác thực số điện thoại để có thể báo cáo ca bệnh.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.amber.shade900,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.green.shade200),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green.shade700,
+                          _VerificationBadge(
+                            verified: user.isPhoneVerified,
+                            text: 'SĐT',
                           ),
                           const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Tài khoản đã được xác thực đầy đủ. Bạn có thể báo cáo ca bệnh.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.green.shade900,
+                          if (user.role == UserRole.healthWorker ||
+                              user.role == UserRole.admin)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                user.role == UserRole.admin
+                                    ? 'Quản trị viên'
+                                    : 'Nhân viên y tế',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       ),
-                    ),
-                  const SizedBox(height: 32),
-                  // Logout Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Đăng xuất'),
-                            content: const Text(
-                              'Bạn có chắc chắn muốn đăng xuất?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(false),
-                                child: const Text('Hủy'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(true),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('Đăng xuất'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirm == true) {
-                          await authProvider.logout();
-                        }
-                      },
-                      icon: const Icon(Icons.logout, color: Colors.red),
-                      label: const Text(
-                        'Đăng xuất',
-                        style: TextStyle(color: Colors.red),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Menu items
+          SliverList(
+            delegate: SliverChildListDelegate([
+              const SizedBox(height: 20),
+              // Activity Section
+              _MenuSection(
+                title: 'Hoạt động của tôi',
+                items: [
+                  _MenuItem(
+                    icon: Icons.description,
+                    title: 'Báo cáo của tôi',
+                    subtitle: 'Xem lịch sử báo cáo dịch bệnh',
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
                       ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.red),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '12', // Mock count
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade800,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MyReportsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _MenuItem(
+                    icon: Icons.post_add,
+                    title: 'Bài đăng của tôi',
+                    subtitle: 'Bài viết đã chia sẻ với cộng đồng',
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '7', // Mock count
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green.shade800,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MyPostsScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
-            ),
-          );
-        },
+              // Settings Section
+              _MenuSection(
+                title: 'Cài đặt & Bảo mật',
+                items: [
+                  _MenuItem(
+                    icon: Icons.edit,
+                    title: 'Chỉnh sửa hồ sơ',
+                    subtitle: 'Cập nhật thông tin cá nhân',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const EditProfileScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _MenuItem(
+                    icon: Icons.settings,
+                    title: 'Cài đặt ứng dụng',
+                    subtitle: 'Giao diện, thông báo, ngôn ngữ',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _MenuItem(
+                    icon: Icons.notifications,
+                    title: 'Thông báo',
+                    subtitle: 'Cài đặt loại thông báo nhận',
+                    onTap: () {
+                      // TODO: Navigate to notification settings
+                    },
+                  ),
+                  _MenuItem(
+                    icon: Icons.security,
+                    title: 'Bảo mật',
+                    subtitle: 'Xác thực, quyền truy cập',
+                    trailing: Switch(
+                      value: settingsProvider.biometricAuth,
+                      onChanged: settingsProvider.toggleBiometricAuth,
+                      activeColor: Colors.blue,
+                    ),
+                    onTap: () {
+                      // TODO: Navigate to security settings
+                    },
+                  ),
+                  _MenuItem(
+                    icon: Icons.privacy_tip,
+                    title: 'Quyền riêng tư',
+                    subtitle: 'Kiểm soát dữ liệu cá nhân',
+                    onTap: () {
+                      // TODO: Navigate to privacy settings
+                    },
+                  ),
+                ],
+              ),
+              // Support Section
+              _MenuSection(
+                title: 'Hỗ trợ',
+                items: [
+                  _MenuItem(
+                    icon: Icons.help_center,
+                    title: 'Trung tâm trợ giúp',
+                    subtitle: 'Câu hỏi thường gặp & hướng dẫn',
+                    onTap: () {
+                      // TODO: Navigate to help center
+                    },
+                  ),
+                  _MenuItem(
+                    icon: Icons.article,
+                    title: 'Điều khoản sử dụng',
+                    subtitle: 'Chính sách bảo mật & điều khoản',
+                    onTap: () {
+                      // TODO: Show terms and conditions
+                    },
+                  ),
+                  _MenuItem(
+                    icon: Icons.info,
+                    title: 'Về ứng dụng',
+                    subtitle: 'Phiên bản 2.0.0 | SafeZone',
+                    onTap: () {
+                      // TODO: Show about dialog
+                    },
+                  ),
+                ],
+              ),
+              // Logout button
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: ElevatedButton.icon(
+                  onPressed: _showLogoutDialog,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade50,
+                    foregroundColor: Colors.red,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.red.shade200),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  icon: const Icon(Icons.logout),
+                  label: const Text(
+                    'ĐĂNG XUẤT',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ]),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _VerificationTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool isVerified;
-  final bool hasData;
-  final VoidCallback? onTap;
+// Verification Badge Widget
+class _VerificationBadge extends StatelessWidget {
+  final bool verified;
+  final String text;
 
-  const _VerificationTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.isVerified,
-    this.hasData = true,
-    this.onTap,
+  const _VerificationBadge({
+    required this.verified,
+    required this.text,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isVerified ? Colors.green.shade50 : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: isVerified ? Colors.green : Colors.grey.shade600,
-          ),
-        ),
-        title: Text(title),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-        ),
-        trailing: isVerified
-            ? const Icon(Icons.check_circle, color: Colors.green)
-            : TextButton(
-                onPressed: onTap,
-                child: Text(hasData ? 'Xác thực' : 'Cập nhật'),
-              ),
-        onTap: isVerified ? null : onTap,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: verified ? Colors.green.shade100 : Colors.orange.shade100,
+        borderRadius: BorderRadius.circular(20),
       ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            verified ? Icons.verified : Icons.pending,
+            size: 14,
+            color: verified ? Colors.green : Colors.orange,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$text ${verified ? '✓' : '!'}',
+            style: TextStyle(
+              fontSize: 12,
+              color: verified ? Colors.green.shade800 : Colors.orange.shade800,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Menu Section Widget
+class _MenuSection extends StatelessWidget {
+  final String title;
+  final List<Widget> items;
+
+  const _MenuSection({
+    required this.title,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 8, bottom: 12),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ),
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: items,
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+}
+
+// Menu Item Widget
+class _MenuItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback onTap;
+
+  const _MenuItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: Colors.blue.shade600, size: 20),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade600,
+        ),
+      ),
+      trailing: trailing,
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     );
   }
 }

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/notification_model.dart';
 import '../../providers/notification_provider.dart';
-import '../community/community_screen.dart';
+import '../../providers/post_provider.dart';
+import '../community/widgets/post_card.dart';
+import '../community/widgets/create_post_dialog.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -287,12 +289,90 @@ class _NotificationCard extends StatelessWidget {
 }
 
 // Tab Cộng đồng - Bài đăng từ cơ quan y tế và cảnh báo từ người dùng
-class _CommunityTab extends StatelessWidget {
+class _CommunityTab extends StatefulWidget {
   const _CommunityTab();
 
   @override
+  State<_CommunityTab> createState() => _CommunityTabState();
+}
+
+class _CommunityTabState extends State<_CommunityTab> {
+  @override
+  void initState() {
+    super.initState();
+    // Load posts when tab initializes
+    Future.microtask(() {
+      if (mounted) {
+        context.read<PostProvider>().loadMorePosts();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Sử dụng CommunityScreen nhưng loại bỏ AppBar vì đã có trong NotificationsScreen
-    return const CommunityScreen(hideAppBar: true);
+    return Stack(
+      children: [
+        Consumer<PostProvider>(
+          builder: (context, postProvider, _) {
+            if (postProvider.isLoading && postProvider.posts.isEmpty) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
+            if (postProvider.posts.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.post_add,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Chưa có bài viết nào',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Hãy là người đầu tiên chia sẻ thông tin',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey,
+                          ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(8),
+              itemCount: postProvider.posts.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final post = postProvider.posts[index];
+                return PostCard(post: post);
+              },
+            );
+          },
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => const CreatePostDialog(),
+              );
+            },
+            tooltip: 'Tạo bài viết',
+            child: const Icon(Icons.add),
+          ),
+        ),
+      ],
+    );
   }
 }
