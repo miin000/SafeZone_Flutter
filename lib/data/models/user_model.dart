@@ -3,7 +3,7 @@ import 'package:equatable/equatable.dart';
 
 enum UserRole { user, admin, healthWorker }
 
-class UserModel extends Equatable {
+class UserModel {
   final String id;
   final String? email;
   final String name;

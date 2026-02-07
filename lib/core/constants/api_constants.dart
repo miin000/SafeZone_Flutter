@@ -5,13 +5,12 @@ import 'package:flutter/foundation.dart';
 class ApiConstants {
   ApiConstants._();
 
-  // Base URL configuration
   static String get baseUrl {
     // Web should use the current host to avoid dart:io Platform checks
     if (kIsWeb) {
       final scheme = Uri.base.scheme; // http or https
       final host = Uri.base.host; // e.g., localhost or domain
-      // Prefer explicit API port (3001) used by NestJS backend
+      // Prefer explicit API port (3002) used by NestJS backend
       return '$scheme://$host:3002/api/v1';
     }
 
@@ -24,7 +23,7 @@ class ApiConstants {
     return 'http://localhost:3002/api/v1';
   }
 
-  // Timeout durations
+// Timeout durations
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration sendTimeout = Duration(seconds: 30);

@@ -33,4 +33,13 @@ class AppColors {
   static const Color statusRecovered = Color(0xFF66bb6a);
   static const Color statusDeath = Color(0xFFef5350);
   static const Color statusUnknown = Color(0xFF90a4ae);
+
+  // === GENERAL APP COLORS ===
+  // For backward compatibility with feature/notification2 branch
+  static const Color primary = Colors.blue;
+  static const Color secondary = Colors.green;
+  static const Color error = Colors.red;
+  static const Color warning = Colors.orange;
+  static const Color info = Colors.blue;
+  static const Color success = Colors.green;
 }

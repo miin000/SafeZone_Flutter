@@ -210,7 +210,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
             message = 'Dữ liệu không hợp lệ';
             break;
           case 401:
-            message = 'Email hoặc mật khẩu không đúng';
+            message = 'Số điện thoại hoặc mật khẩu không đúng';
             break;
           case 409:
             message = 'Email đã được sử dụng';

@@ -1,18 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+// Models
+import 'package:mobile_flutter/data/models/user_model.dart';
+
+// Screens
 import 'package:mobile_flutter/presentation/screens/home/home_screen.dart';
 import 'package:mobile_flutter/presentation/screens/map/map_screen.dart';
 import 'package:mobile_flutter/presentation/screens/notifications/notifications_screen.dart';
 import 'package:mobile_flutter/presentation/screens/report/report_screen.dart';
+import 'package:mobile_flutter/presentation/screens/community/community_screen.dart';
 import 'package:mobile_flutter/presentation/screens/profile/profile_screen.dart';
 import 'package:mobile_flutter/presentation/screens/auth/login_screen.dart';
 import 'package:mobile_flutter/presentation/screens/splash/splash_screen.dart';
-import 'package:mobile_flutter/presentation/providers/report_provider.dart';
+
+// Providers
 import 'package:mobile_flutter/presentation/providers/auth_provider.dart';
+export 'package:mobile_flutter/presentation/providers/auth_provider.dart' show AuthStatus;
+import 'package:mobile_flutter/presentation/providers/report_provider.dart';
+import 'package:mobile_flutter/presentation/providers/settings_provider.dart';
+import 'package:mobile_flutter/presentation/providers/post_provider.dart';
 import 'package:mobile_flutter/presentation/providers/zone_provider.dart';
 import 'package:mobile_flutter/presentation/providers/location_provider.dart';
 import 'package:mobile_flutter/presentation/providers/notification_provider.dart';
+
+// Widgets
 import 'package:mobile_flutter/presentation/widgets/zone_warning_banner.dart';
+
+// Data sources & Repositories
+import 'package:mobile_flutter/data/datasources/local/post_local_datasource.dart';
+import 'package:mobile_flutter/data/repositories/post_repository_impl.dart';
 
 class SafeZoneApp extends StatelessWidget {
   const SafeZoneApp({super.key});
@@ -26,6 +43,19 @@ class SafeZoneApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ZoneProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+
+        // Post Provider với dependencies
+        ChangeNotifierProvider(
+          create: (context) {
+            final authProvider = context.read<AuthProvider>();
+            return PostProvider(
+              repository: PostRepositoryImpl(),
+              localDatasource: PostLocalDatasource(),
+              currentUser: authProvider.user,
+            );
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'SafeZone',
@@ -55,6 +85,27 @@ class _AuthWrapperState extends State<AuthWrapper> {
     // Check auth status on app start
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AuthProvider>().checkAuthStatus();
+
+      // Initialize mock data - chỉ khi app khởi động
+      _initializeMockData();
+    });
+  }
+
+  void _initializeMockData() {
+    // Đợi một chút để đảm bảo provider đã được khởi tạo
+    Future.delayed(const Duration(milliseconds: 500), () {
+      final authProvider = context.read<AuthProvider>();
+      final postProvider = context.read<PostProvider>();
+
+      // Update current user in PostProvider
+      if (authProvider.user != null) {
+        postProvider.setCurrentUser(authProvider.user);
+        print('Updated PostProvider with current user: ${authProvider.user?.name}');
+      }
+
+      // Load posts from API/database instead of using mock data
+      print('🔄 Loading posts from database...');
+      postProvider.refreshPosts();
     });
   }
 
@@ -62,16 +113,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
-        switch (authProvider.status) {
-          case AuthStatus.initial:
-          case AuthStatus.loading:
-            return const SplashScreen();
-          case AuthStatus.authenticated:
-            return const MainScreen();
-          case AuthStatus.unauthenticated:
-          case AuthStatus.error:
-            return const LoginScreen();
+        // Show splash screen while checking auth
+        if (authProvider.status == AuthStatus.initial ||
+            authProvider.status == AuthStatus.loading) {
+          return const SplashScreen();
         }
+
+        // If authenticated, show main screen
+        if (authProvider.status == AuthStatus.authenticated) {
+          return const MainScreen();
+        }
+
+        // Otherwise show login screen
+        return const LoginScreen();
       },
     );
   }

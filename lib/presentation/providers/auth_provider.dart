@@ -6,7 +6,13 @@ import '../../data/models/user_model.dart';
 import '../../data/models/verification_model.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 
-enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
+enum AuthStatus {
+  initial,
+  loading,
+  authenticated,
+  unauthenticated,
+  error,
+}
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _repository;
