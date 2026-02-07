@@ -68,9 +68,11 @@ class PostModelAdapter extends TypeAdapter<PostModel> {
         status: status,
         location: location,
         diseaseType: diseaseType,
+        author: null, // Author is not persisted in Hive to avoid circular references
         authorId: authorId,
         helpfulCount: helpfulCount,
         notHelpfulCount: notHelpfulCount,
+        userReactions: {}, // userReactions are not persisted in Hive
         createdAt: createdAt,
         updatedAt: updatedAt,
       );

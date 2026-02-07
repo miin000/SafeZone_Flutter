@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:mobile_flutter/data/mock_data/mock_notifications.dart';
 import 'package:mobile_flutter/data/models/notification_model.dart';
 import 'package:mobile_flutter/data/models/post_model.dart';
 import 'package:mobile_flutter/presentation/providers/post_provider.dart';
@@ -30,7 +29,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   void _loadNotifications() {
     setState(() {
-      _notifications = MockNotifications.notifications;
+      _notifications = [];
       _unreadCount = _notifications.where((n) => !n.isRead).length;
     });
   }

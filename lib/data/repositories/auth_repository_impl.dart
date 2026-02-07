@@ -3,7 +3,7 @@ import '../datasources/remote/auth_remote_datasource.dart';
 import '../models/user_model.dart';
 
 abstract class AuthRepository {
-  Future<AuthResponse> login(String email, String password);
+  Future<AuthResponse> login(String phone, String password);
   Future<AuthResponse> register(String email, String password, String name, String? phone);
   Future<UserModel> getProfile();
   Future<UserModel> updateProfile(Map<String, dynamic> data);
@@ -18,8 +18,8 @@ class AuthRepositoryImpl implements AuthRepository {
       : _remoteDatasource = remoteDatasource ?? AuthRemoteDatasourceImpl();
 
   @override
-  Future<AuthResponse> login(String email, String password) {
-    return _remoteDatasource.login(email, password);
+  Future<AuthResponse> login(String phone, String password) {
+    return _remoteDatasource.login(phone, password);
   }
 
   @override

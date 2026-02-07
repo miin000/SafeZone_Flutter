@@ -96,13 +96,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
         print('Updated PostProvider with current user: ${authProvider.user?.name}');
       }
 
-      // Kiểm tra nếu chưa có post nào thì thêm mock data
-      if (postProvider.posts.isEmpty) {
-        print('🔄 Initializing mock data...');
-        postProvider.addMockPostsForTesting();
-      } else {
-        print('✅ Mock data already exists, skipping initialization');
-      }
+      // Load posts from API/database instead of using mock data
+      print('🔄 Loading posts from database...');
+      postProvider.refreshPosts();
     });
   }
 

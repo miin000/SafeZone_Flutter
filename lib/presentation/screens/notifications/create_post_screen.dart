@@ -23,7 +23,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final List<File> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
 
-  String _selectedSource = 'citizen';
   bool _isSubmitting = false;
 
   // Disease types
@@ -37,13 +36,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     'Tiêu chảy cấp',
     'Khác',
   ];
-
-  // Source options
-  final Map<String, String> _sourceOptions = {
-    'citizen': 'Công dân',
-    'verified_user': 'Người dùng đã xác minh',
-    'health_worker': 'Nhân viên y tế',
-  };
 
   @override
   void initState() {
@@ -96,11 +88,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       _contentController.text = draft.content;
       _locationController.text = draft.location ?? '';
       _diseaseTypeController.text = draft.diseaseType ?? '';
-      _selectedSource = draft.source == PostSource.healthWorker
-          ? 'health_worker'
-          : draft.source == PostSource.verifiedUser
-          ? 'verified_user'
-          : 'citizen';
     });
   }
 
@@ -160,7 +147,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     print('=== DEBUG SUBMIT POST ===');
     print('Content: ${_contentController.text}');
     print('Images: ${_selectedImages.length}');
-    print('Source: $_selectedSource');
 
     // Check authentication
     final authProvider = context.read<AuthProvider>();
@@ -200,7 +186,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         diseaseType: _diseaseTypeController.text.trim().isNotEmpty
             ? _diseaseTypeController.text.trim()
             : null,
-        source: _selectedSource,
       );
 
       print('Request: ${request.toJson()}');
@@ -263,48 +248,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Source selection
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Đăng bài với tư cách:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        children: _sourceOptions.entries.map((entry) {
-                          final isSelected = _selectedSource == entry.key;
-                          return ChoiceChip(
-                            label: Text(entry.value),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                _selectedSource = entry.key;
-                              });
-                            },
-                            selectedColor: Colors.blue.shade100,
-                            backgroundColor: Colors.grey.shade100,
-                            labelStyle: TextStyle(
-                              color: isSelected ? Colors.blue.shade800 : Colors.grey.shade800,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
               // Content input
               TextFormField(
                 controller: _contentController,

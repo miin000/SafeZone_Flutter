@@ -3,14 +3,12 @@ class CreatePostRequest {
   final List<String> imageUrls;
   final String? location;
   final String? diseaseType;
-  final String source;
 
   const CreatePostRequest({
     required this.content,
     this.imageUrls = const [],
     this.location,
     this.diseaseType,
-    this.source = 'citizen',
   });
 
   Map<String, dynamic> toJson() {
@@ -19,7 +17,6 @@ class CreatePostRequest {
       'imageUrls': imageUrls,
       if (location != null) 'location': location,
       if (diseaseType != null) 'diseaseType': diseaseType,
-      'source': source,
     };
   }
 }

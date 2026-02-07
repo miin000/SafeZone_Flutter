@@ -14,7 +14,6 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
   late TextEditingController _contentController;
   late TextEditingController _locationController;
   late TextEditingController _diseaseTypeController;
-  String _selectedSource = 'citizen';
 
   @override
   void initState() {
@@ -100,41 +99,6 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
               ),
               const SizedBox(height: 16),
 
-              // Source dropdown
-              DropdownButtonFormField<String>(
-                value: _selectedSource,
-                decoration: InputDecoration(
-                  labelText: 'Loại nguồn',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                items: [
-                  DropdownMenuItem(
-                    value: 'citizen',
-                    child: Text('Công dân'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'health_worker',
-                    child: Text('Nhân viên y tế'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'verified_user',
-                    child: Text('Người dùng đã xác minh'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'government',
-                    child: Text('Chính phủ'),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _selectedSource = value);
-                  }
-                },
-              ),
-              const SizedBox(height: 24),
-
               // Buttons
               Consumer<PostProvider>(
                 builder: (context, postProvider, _) {
@@ -168,7 +132,6 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
                               diseaseType: _diseaseTypeController.text.isEmpty
                                   ? null
                                   : _diseaseTypeController.text,
-                              source: _selectedSource,
                             );
 
                             await postProvider.createPost(request);

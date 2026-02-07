@@ -70,12 +70,12 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // Login
-  Future<bool> login(String email, String password) async {
+  Future<bool> login(String phone, String password) async {
     _setStatus(AuthStatus.loading);
     _setError(null);
 
     try {
-      final response = await _repository.login(email, password);
+      final response = await _repository.login(phone, password);
       _user = response.user;
       _setStatus(AuthStatus.authenticated);
       return true;

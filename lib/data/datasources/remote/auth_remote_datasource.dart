@@ -6,7 +6,7 @@ import '../../../core/utils/storage_utils.dart';
 import '../../models/user_model.dart';
 
 abstract class AuthRemoteDatasource {
-  Future<AuthResponse> login(String email, String password);
+  Future<AuthResponse> login(String phone, String password);
   Future<AuthResponse> register(String email, String password, String name, String? phone);
   Future<UserModel> getProfile();
   Future<UserModel> updateProfile(Map<String, dynamic> data);
@@ -21,12 +21,12 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
       : _apiClient = apiClient ?? ApiClient.instance;
 
   @override
-  Future<AuthResponse> login(String email, String password) async {
+  Future<AuthResponse> login(String phone, String password) async {
     try {
       final response = await _apiClient.post(
         ApiConstants.login,
         data: {
-          'email': email,
+          'phone': phone,
           'password': password,
         },
       );
@@ -132,7 +132,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
             message = 'Dữ liệu không hợp lệ';
             break;
           case 401:
-            message = 'Email hoặc mật khẩu không đúng';
+            message = 'Số điện thoại hoặc mật khẩu không đúng';
             break;
           case 409:
             message = 'Email đã được sử dụng';
