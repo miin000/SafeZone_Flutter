@@ -200,24 +200,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.description,
                     title: 'Báo cáo của tôi',
                     subtitle: 'Xem lịch sử báo cáo dịch bệnh',
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '12', // Mock count
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue.shade800,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -231,24 +213,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.post_add,
                     title: 'Bài đăng của tôi',
                     subtitle: 'Bài viết đã chia sẻ với cộng đồng',
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade100,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '7', // Mock count
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green.shade800,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                     onTap: () {
                       Navigator.push(
                         context,

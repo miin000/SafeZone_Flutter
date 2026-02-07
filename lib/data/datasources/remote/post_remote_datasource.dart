@@ -50,9 +50,10 @@ class PostRemoteDatasourceImpl implements PostRemoteDatasource {
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
+      // Backend returns: { data: [...], meta: {...} }
       final List<dynamic> data = response.data is List
           ? response.data
-          : response.data['items'] ?? [];
+          : response.data['data'] ?? [];  // Fixed: was 'items', should be 'data'
 
       return data.map((json) => PostModel.fromJson(json)).toList();
     } on DioException catch (e) {
@@ -65,9 +66,10 @@ class PostRemoteDatasourceImpl implements PostRemoteDatasource {
     try {
       final response = await _apiClient.get(ApiConstants.myPosts);
 
+      // Backend returns array of posts directly for my-posts endpoint
       final List<dynamic> data = response.data is List
           ? response.data
-          : response.data['items'] ?? [];
+          : [];
 
       return data.map((json) => PostModel.fromJson(json)).toList();
     } on DioException catch (e) {
