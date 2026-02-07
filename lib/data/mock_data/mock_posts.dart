@@ -466,6 +466,7 @@ class PostProvider extends ChangeNotifier {
       id: 'test_user_001',
       email: 'test@example.com',
       name: 'Người dùng thử nghiệm',
+      phone: '0987654321',
       role: UserRole.user,
       isEmailVerified: true,
       isPhoneVerified: true,

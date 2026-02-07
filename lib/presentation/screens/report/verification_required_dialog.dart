@@ -69,9 +69,9 @@ class VerificationRequiredDialog extends StatelessWidget {
                 title: 'Số điện thoại',
                 subtitle: user?.phone ?? 'Chưa cập nhật',
                 isVerified: isPhoneVerified,
-                hasPhone: user?.phone != null && user!.phone!.isNotEmpty,
+                hasPhone: user != null && user.phone.isNotEmpty,
                 onVerify: () async {
-                  if (user?.phone == null || user!.phone!.isEmpty) {
+                  if (user == null || user.phone.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(

@@ -1,8 +1,6 @@
-import 'package:flutter/material.dart'; // THÊM
 import 'package:hive/hive.dart';
 import 'package:mobile_flutter/data/models/post_model.dart';
 import 'package:mobile_flutter/data/models/user_model.dart';
-import 'package:mobile_flutter/data/models/post_model.dart';
 
 // Register all adapters
 void registerHiveAdapters() {
@@ -27,9 +25,7 @@ class PostModelAdapter extends TypeAdapter<PostModel> {
       final id = reader.readString();
       final content = reader.readString();
       final imageUrlsList = reader.readList();
-      final imageUrls = imageUrlsList != null
-          ? List<String>.from(imageUrlsList)
-          : <String>[];
+      final imageUrls = List<String>.from(imageUrlsList);
       final sourceIndex = reader.readByte();
       final source = sourceIndex < PostSource.values.length
           ? PostSource.values[sourceIndex]

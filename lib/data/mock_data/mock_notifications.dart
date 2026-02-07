@@ -7,9 +7,8 @@ class MockNotifications {
       id: '1',
       title: '⚠️ CẢNH BÁO VÙNG DỊCH',
       message: 'Bạn đang ở gần vùng dịch Sốt xuất huyết tại Quận Hoàn Kiếm, Hà Nội. Số ca mắc: 45 | Mức độ: Nguy hiểm',
-      type: NotificationType.zoneAlert,
-      priority: NotificationPriority.high,
-      data: {
+      type: NotificationType.epidemicAlert,
+      metadata: {
         'zoneId': 'zone_001',
         'diseaseType': 'dengue',
         'lat': 21.0285,
@@ -22,9 +21,8 @@ class MockNotifications {
       id: '2',
       title: '⚠️ CẢNH BÁO KHU VỰC',
       message: 'Khu vực quận Cầu Giấy đang có dịch Tay chân miệng. Vui lòng hạn chế đến khu vực này.',
-      type: NotificationType.zoneAlert,
-      priority: NotificationPriority.medium,
-      data: {
+      type: NotificationType.zoneEntry,
+      metadata: {
         'zoneId': 'zone_002',
         'diseaseType': 'hfmd',
         'lat': 21.0333,
@@ -40,8 +38,7 @@ class MockNotifications {
       title: '✅ BÁO CÁO ĐÃ ĐƯỢC XÁC MINH',
       message: 'Báo cáo của bạn về ca COVID-19 tại số 10 Phố Huế đã được xác minh và hiển thị trên bản đồ.',
       type: NotificationType.reportUpdate,
-      priority: NotificationPriority.low,
-      data: {
+      metadata: {
         'reportId': 'report_123',
         'status': 'verified',
       },

@@ -1,5 +1,4 @@
 // User Model
-import 'package:equatable/equatable.dart';
 
 enum UserRole { user, admin, healthWorker }
 
@@ -98,20 +97,6 @@ class UserModel {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
-
-  @override
-  List<Object?> get props => [
-        id,
-        email,
-        name,
-        phone,
-        avatarUrl,
-        role,
-        isEmailVerified,
-        isPhoneVerified,
-        createdAt,
-        updatedAt,
-      ];
 }
 
 // Auth response model

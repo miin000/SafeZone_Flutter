@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// Models
-import 'package:mobile_flutter/data/models/user_model.dart';
-
 // Screens
 import 'package:mobile_flutter/presentation/screens/home/home_screen.dart';
 import 'package:mobile_flutter/presentation/screens/map/map_screen.dart';
@@ -144,6 +141,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = const [
     HomeScreen(),
     MapScreen(),
+    CommunityScreen(),
     NotificationsScreen(),
     ReportScreen(),
     ProfileScreen(),
@@ -188,6 +186,10 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.map),
             label: 'Bản đồ',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people),
+            label: 'Cộng đồng',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.notifications),

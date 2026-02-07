@@ -137,12 +137,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _VerificationTile(
                     icon: Icons.phone_outlined,
                     title: 'Số điện thoại',
-                    subtitle: user.phone ?? 'Chưa cập nhật',
+                    subtitle: user.phone,
                     isVerified: authProvider.isPhoneVerified,
-                    hasData: user.phone != null && user.phone!.isNotEmpty,
+                    hasData: user.phone.isNotEmpty,
                     onTap: authProvider.isPhoneVerified
                         ? null
-                        : (user.phone == null || user.phone!.isEmpty)
+                        : user.phone.isEmpty
                         ? () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
