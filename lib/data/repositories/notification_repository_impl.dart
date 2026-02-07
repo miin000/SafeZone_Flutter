@@ -26,7 +26,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
-  Future<NotificationModel> markAsRead(String notificationId) {
+  Future<void> markAsRead(String notificationId) {
     return _remoteDatasource.markAsRead(notificationId);
   }
 
