@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:mobile_flutter/core/constants/app_colors.dart';
 import 'package:mobile_flutter/domain/entities/epidemic_zone.dart';
 import 'package:mobile_flutter/presentation/providers/zone_provider.dart';
 import 'package:mobile_flutter/presentation/providers/location_provider.dart';
@@ -55,13 +56,13 @@ class _MapScreenState extends State<MapScreen> {
   Color _getRiskColor(ZoneRiskLevel level) {
     switch (level) {
       case ZoneRiskLevel.critical:
-        return Colors.red.shade900;
+        return AppColors.severityHigh; // Red - matching web admin High severity
       case ZoneRiskLevel.high:
-        return Colors.red;
+        return AppColors.severityHigh; // Red - matching web admin High severity
       case ZoneRiskLevel.medium:
-        return Colors.orange;
+        return AppColors.severityMedium; // Orange - matching web admin Medium severity
       case ZoneRiskLevel.low:
-        return Colors.yellow.shade700;
+        return AppColors.severityLow; // Green - matching web admin Low severity
     }
   }
 

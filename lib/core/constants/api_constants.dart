@@ -12,16 +12,16 @@ class ApiConstants {
       final scheme = Uri.base.scheme; // http or https
       final host = Uri.base.host; // e.g., localhost or domain
       // Prefer explicit API port (3001) used by NestJS backend
-      return '$scheme://$host:3001/api/v1';
+      return '$scheme://$host:3002/api/v1';
     }
 
     // Android emulator uses 10.0.2.2 to access host machine
     if (Platform.isAndroid) {
-      return 'http://10.0.2.2:3001/api/v1';
+      return 'http://10.0.2.2:3002/api/v1';
     }
 
     // iOS simulator / other platforms use localhost
-    return 'http://localhost:3001/api/v1';
+    return 'http://localhost:3002/api/v1';
   }
 
   // Timeout durations
