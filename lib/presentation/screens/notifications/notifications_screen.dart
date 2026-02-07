@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/notification_model.dart';
 import '../../providers/notification_provider.dart';
+import '../community/community_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -291,30 +292,7 @@ class _CommunityTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
-            'Cộng đồng',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              'Nơi cơ quan y tế đăng bài khuyến cáo và cộng đồng chia sẻ cảnh báo dịch bệnh',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
-        ],
-      ),
-    );
+    // Sử dụng CommunityScreen nhưng loại bỏ AppBar vì đã có trong NotificationsScreen
+    return const CommunityScreen(hideAppBar: true);
   }
 }

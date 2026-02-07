@@ -6,7 +6,6 @@ import 'package:mobile_flutter/presentation/screens/home/home_screen.dart';
 import 'package:mobile_flutter/presentation/screens/map/map_screen.dart';
 import 'package:mobile_flutter/presentation/screens/notifications/notifications_screen.dart';
 import 'package:mobile_flutter/presentation/screens/report/report_screen.dart';
-import 'package:mobile_flutter/presentation/screens/community/community_screen.dart';
 import 'package:mobile_flutter/presentation/screens/profile/profile_screen.dart';
 import 'package:mobile_flutter/presentation/screens/auth/login_screen.dart';
 import 'package:mobile_flutter/presentation/screens/splash/splash_screen.dart';
@@ -141,7 +140,6 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = const [
     HomeScreen(),
     MapScreen(),
-    CommunityScreen(),
     NotificationsScreen(),
     ReportScreen(),
     ProfileScreen(),
@@ -186,10 +184,6 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.map),
             label: 'Bản đồ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Cộng đồng',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.notifications),
