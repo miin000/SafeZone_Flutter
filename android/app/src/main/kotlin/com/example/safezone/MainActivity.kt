@@ -1,4 +1,4 @@
-package com.example.mobile_flutter
+package com.example.safezone
 
 import io.flutter.embedding.android.FlutterActivity
 

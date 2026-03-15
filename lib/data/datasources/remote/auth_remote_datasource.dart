@@ -4,14 +4,22 @@ import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/storage_utils.dart';
 import '../../models/user_model.dart';
+import '../../models/verification_model.dart';
 
 abstract class AuthRemoteDatasource {
-  Future<AuthResponse> login(String email, String password);
-  Future<AuthResponse> register(String email, String password, String name, String? phone);
+  Future<AuthResponse> login(String phone, String password);
+  Future<AuthResponse> register(String phone, String password, String name, String? email);
   Future<UserModel> getProfile();
   Future<UserModel> updateProfile(Map<String, dynamic> data);
   Future<void> logout();
   Future<bool> verifyToken();
+  Future<void> updateFcmToken(String token);
+  // Verification methods
+  Future<VerificationStatus> getVerificationStatus();
+  Future<OtpResponse> sendEmailOtp();
+  Future<OtpResponse> verifyEmailOtp(String otp);
+  Future<OtpResponse> sendPhoneOtp();
+  Future<OtpResponse> verifyPhoneOtp(String otp);
 }
 
 class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
@@ -21,12 +29,12 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
       : _apiClient = apiClient ?? ApiClient.instance;
 
   @override
-  Future<AuthResponse> login(String email, String password) async {
+  Future<AuthResponse> login(String phone, String password) async {
     try {
       final response = await _apiClient.post(
         ApiConstants.login,
         data: {
-          'email': email,
+          'phone': phone,
           'password': password,
         },
       );
@@ -37,7 +45,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
       await StorageUtils.saveToken(authResponse.accessToken);
       await StorageUtils.saveUserInfo(
         userId: authResponse.user.id,
-        email: authResponse.user.email,
+        email: authResponse.user.email ?? '',
         name: authResponse.user.name,
       );
       
@@ -49,19 +57,19 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
 
   @override
   Future<AuthResponse> register(
-    String email,
+    String phone,
     String password,
     String name,
-    String? phone,
+    String? email,
   ) async {
     try {
       final response = await _apiClient.post(
         ApiConstants.register,
         data: {
-          'email': email,
+          'phone': phone,
           'password': password,
           'name': name,
-          if (phone != null) 'phone': phone,
+          if (email != null && email.isNotEmpty) 'email': email,
         },
       );
       
@@ -71,7 +79,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
       await StorageUtils.saveToken(authResponse.accessToken);
       await StorageUtils.saveUserInfo(
         userId: authResponse.user.id,
-        email: authResponse.user.email,
+        email: authResponse.user.email ?? '',
         name: authResponse.user.name,
       );
       
@@ -119,6 +127,76 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
     }
   }
 
+  // ==================== Verification Methods ====================
+
+  @override
+  Future<VerificationStatus> getVerificationStatus() async {
+    try {
+      final response = await _apiClient.get(ApiConstants.verificationStatus);
+      return VerificationStatus.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  @override
+  Future<OtpResponse> sendEmailOtp() async {
+    try {
+      final response = await _apiClient.post(ApiConstants.sendEmailOtp);
+      return OtpResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  @override
+  Future<OtpResponse> verifyEmailOtp(String otp) async {
+    try {
+      final response = await _apiClient.post(
+        ApiConstants.verifyEmail,
+        data: {'otp': otp},
+      );
+      return OtpResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  @override
+  Future<OtpResponse> sendPhoneOtp() async {
+    try {
+      final response = await _apiClient.post(ApiConstants.sendPhoneOtp);
+      return OtpResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  @override
+  Future<OtpResponse> verifyPhoneOtp(String otp) async {
+    try {
+      final response = await _apiClient.post(
+        ApiConstants.verifyPhone,
+        data: {'otp': otp},
+      );
+      return OtpResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  @override
+  Future<void> updateFcmToken(String token) async {
+    try {
+      await _apiClient.post(
+        ApiConstants.updateFcmToken,
+        data: {'fcmToken': token},
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Exception _handleError(DioException e) {
     String message = 'Đã xảy ra lỗi';
     
@@ -132,7 +210,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
             message = 'Dữ liệu không hợp lệ';
             break;
           case 401:
-            message = 'Email hoặc mật khẩu không đúng';
+            message = 'Số điện thoại hoặc mật khẩu không đúng';
             break;
           case 409:
             message = 'Email đã được sử dụng';

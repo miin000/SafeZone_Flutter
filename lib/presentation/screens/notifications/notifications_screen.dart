@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../data/models/notification_model.dart';
+import '../../providers/notification_provider.dart';
+import '../../providers/post_provider.dart';
+import '../community/widgets/post_card.dart';
+import '../community/widgets/create_post_dialog.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -15,6 +21,11 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    
+    // Load notifications on init
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<NotificationProvider>().loadNotifications(refresh: true);
+    });
   }
 
   @override
@@ -30,6 +41,23 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         title: const Text('Thông báo'),
         backgroundColor: Colors.blue.shade600,
         foregroundColor: Colors.white,
+        actions: [
+          Consumer<NotificationProvider>(
+            builder: (context, provider, _) {
+              if (provider.unreadCount > 0) {
+                return TextButton.icon(
+                  onPressed: () => provider.markAllAsRead(),
+                  icon: const Icon(Icons.done_all, color: Colors.white),
+                  label: const Text(
+                    'Đọc tất cả',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
@@ -64,220 +92,287 @@ class _NotificationsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Mock notifications data
-    final notifications = [
-      _NotificationItem(
-        title: 'Cảnh báo dịch bệnh',
-        message: 'Phát hiện ổ dịch sốt xuất huyết tại quận Đống Đa, Hà Nội',
-        time: '5 phút trước',
-        type: NotificationType.warning,
-        isRead: false,
-      ),
-      _NotificationItem(
-        title: 'Báo cáo được xác minh',
-        message: 'Báo cáo của bạn về ca bệnh COVID-19 đã được xác minh',
-        time: '1 giờ trước',
-        type: NotificationType.success,
-        isRead: false,
-      ),
-      _NotificationItem(
-        title: 'Cập nhật vùng dịch',
-        message: 'Vùng dịch tại quận Cầu Giấy đã được thu hẹp phạm vi',
-        time: '2 giờ trước',
-        type: NotificationType.info,
-        isRead: true,
-      ),
-      _NotificationItem(
-        title: 'Nhắc nhở tiêm chủng',
-        message: 'Đã đến lịch tiêm mũi vaccine nhắc lại của bạn',
-        time: '1 ngày trước',
-        type: NotificationType.reminder,
-        isRead: true,
-      ),
-      _NotificationItem(
-        title: 'Cảnh báo khu vực',
-        message: 'Bạn đang ở gần vùng có nguy cơ dịch bệnh cao',
-        time: '2 ngày trước',
-        type: NotificationType.warning,
-        isRead: true,
-      ),
-    ];
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, _) {
+        if (provider.isLoading && provider.notifications.isEmpty) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
 
-    if (notifications.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.notifications_off, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              'Không có thông báo',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-              ),
+        if (provider.error != null && provider.notifications.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+                const SizedBox(height: 16),
+                Text(
+                  'Không thể tải thông báo',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () => provider.loadNotifications(refresh: true),
+                  child: const Text('Thử lại'),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-    }
+          );
+        }
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        // TODO: Refresh notifications
-        await Future.delayed(const Duration(seconds: 1));
+        if (provider.notifications.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.notifications_off, size: 64, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  'Không có thông báo',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => provider.refresh(),
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: provider.notifications.length + (provider.hasMore ? 1 : 0),
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              if (index >= provider.notifications.length) {
+                // Load more trigger
+                provider.loadMore();
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+              
+              final notification = provider.notifications[index];
+              return _NotificationCard(
+                notification: notification,
+                onTap: () => provider.markAsRead(notification.id),
+                onDismiss: () => provider.deleteNotification(notification.id),
+              );
+            },
+          ),
+        );
       },
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: notifications.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final notification = notifications[index];
-          return _NotificationCard(notification: notification);
-        },
-      ),
     );
   }
 }
 
-enum NotificationType { warning, success, info, reminder }
-
-class _NotificationItem {
-  final String title;
-  final String message;
-  final String time;
-  final NotificationType type;
-  final bool isRead;
-
-  _NotificationItem({
-    required this.title,
-    required this.message,
-    required this.time,
-    required this.type,
-    this.isRead = false,
-  });
-}
-
 class _NotificationCard extends StatelessWidget {
-  final _NotificationItem notification;
+  final NotificationModel notification;
+  final VoidCallback? onTap;
+  final VoidCallback? onDismiss;
 
-  const _NotificationCard({required this.notification});
+  const _NotificationCard({
+    required this.notification,
+    this.onTap,
+    this.onDismiss,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: notification.isRead ? 0 : 2,
-      color: notification.isRead ? Colors.grey.shade50 : Colors.white,
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: CircleAvatar(
-          backgroundColor: _getTypeColor().withOpacity(0.1),
-          child: Icon(_getTypeIcon(), color: _getTypeColor()),
+    return Dismissible(
+      key: Key('notification_${notification.id}'),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDismiss?.call(),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(12),
         ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                notification.title,
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      child: Card(
+        elevation: notification.isRead ? 0 : 2,
+        color: notification.isRead ? Colors.grey.shade50 : Colors.white,
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(12),
+          leading: CircleAvatar(
+            backgroundColor: _getTypeColor().withOpacity(0.1),
+            child: Icon(_getTypeIcon(), color: _getTypeColor()),
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  notification.title,
+                  style: TextStyle(
+                    fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (!notification.isRead)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              Text(
+                notification.message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                notification.timeAgo,
                 style: TextStyle(
-                  fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
                 ),
               ),
-            ),
-            if (!notification.isRead)
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
-              ),
-          ],
+            ],
+          ),
+          onTap: onTap,
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              notification.message,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              notification.time,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade500,
-              ),
-            ),
-          ],
-        ),
-        onTap: () {
-          // TODO: Navigate to notification detail
-        },
       ),
     );
   }
 
   Color _getTypeColor() {
     switch (notification.type) {
-      case NotificationType.warning:
+      case NotificationType.epidemicAlert:
+      case NotificationType.zoneEntry:
         return Colors.orange;
-      case NotificationType.success:
+      case NotificationType.reportUpdate:
         return Colors.green;
-      case NotificationType.info:
+      case NotificationType.zoneUpdate:
+      case NotificationType.newPost:
         return Colors.blue;
-      case NotificationType.reminder:
+      case NotificationType.system:
         return Colors.purple;
     }
   }
 
   IconData _getTypeIcon() {
     switch (notification.type) {
-      case NotificationType.warning:
+      case NotificationType.epidemicAlert:
+      case NotificationType.zoneEntry:
         return Icons.warning_amber;
-      case NotificationType.success:
+      case NotificationType.reportUpdate:
         return Icons.check_circle;
-      case NotificationType.info:
+      case NotificationType.zoneUpdate:
+        return Icons.location_on;
+      case NotificationType.newPost:
+        return Icons.article;
+      case NotificationType.system:
         return Icons.info;
-      case NotificationType.reminder:
-        return Icons.schedule;
     }
   }
 }
 
 // Tab Cộng đồng - Bài đăng từ cơ quan y tế và cảnh báo từ người dùng
-class _CommunityTab extends StatelessWidget {
+class _CommunityTab extends StatefulWidget {
   const _CommunityTab();
 
   @override
+  State<_CommunityTab> createState() => _CommunityTabState();
+}
+
+class _CommunityTabState extends State<_CommunityTab> {
+  @override
+  void initState() {
+    super.initState();
+    // Load posts when tab initializes
+    Future.microtask(() {
+      if (mounted) {
+        context.read<PostProvider>().loadMorePosts();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
-            'Cộng đồng',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+    return Stack(
+      children: [
+        Consumer<PostProvider>(
+          builder: (context, postProvider, _) {
+            if (postProvider.isLoading && postProvider.posts.isEmpty) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
+            if (postProvider.posts.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.post_add,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Chưa có bài viết nào',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Hãy là người đầu tiên chia sẻ thông tin',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey,
+                          ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(8),
+              itemCount: postProvider.posts.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final post = postProvider.posts[index];
+                return PostCard(post: post);
+              },
+            );
+          },
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => const CreatePostDialog(),
+              );
+            },
+            tooltip: 'Tạo bài viết',
+            child: const Icon(Icons.add),
           ),
-          SizedBox(height: 8),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              'Nơi cơ quan y tế đăng bài khuyến cáo và cộng đồng chia sẻ cảnh báo dịch bệnh',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
