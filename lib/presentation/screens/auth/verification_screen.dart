@@ -122,6 +122,43 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   String get _otpCode => _otpControllers.map((c) => c.text).join();
 
+  void _setOtpAt(int index, String digit) {
+    _otpControllers[index].value = TextEditingValue(
+      text: digit,
+      selection: TextSelection.collapsed(offset: digit.length),
+    );
+  }
+
+  void _handleOtpInput(int index, String rawValue) {
+    final digits = rawValue.replaceAll(RegExp(r'\D'), '');
+
+    if (digits.isEmpty) {
+      _setOtpAt(index, '');
+      if (index > 0) {
+        _focusNodes[index - 1].requestFocus();
+      }
+      return;
+    }
+
+    // Support paste or accidental multi-digit input by distributing digits.
+    var cursor = index;
+    for (final ch in digits.split('')) {
+      if (cursor > 5) break;
+      _setOtpAt(cursor, ch);
+      cursor++;
+    }
+
+    if (cursor <= 5) {
+      _focusNodes[cursor].requestFocus();
+    } else {
+      _focusNodes[5].unfocus();
+    }
+
+    if (_otpCode.length == 6 && !_isLoading) {
+      _verifyOtp();
+    }
+  }
+
   Future<void> _verifyOtp() async {
     final otp = _otpCode;
     if (otp.length != 6) {
@@ -170,25 +207,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
         }
         _focusNodes[0].requestFocus();
       }
-    }
-  }
-
-  void _onOtpChanged(int index, String value) {
-    if (value.length == 1 && index < 5) {
-      _focusNodes[index + 1].requestFocus();
-    }
-    // Auto submit when all digits are entered
-    if (_otpCode.length == 6) {
-      _verifyOtp();
-    }
-  }
-
-  void _onKeyEvent(int index, KeyEvent event) {
-    if (event is KeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.backspace &&
-        _otpControllers[index].text.isEmpty &&
-        index > 0) {
-      _focusNodes[index - 1].requestFocus();
     }
   }
 
@@ -253,37 +271,44 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 children: List.generate(6, (index) {
                   return SizedBox(
                     width: 45,
-                    child: KeyboardListener(
-                      focusNode: FocusNode(),
-                      onKeyEvent: (event) => _onKeyEvent(index, event),
-                      child: TextField(
-                        controller: _otpControllers[index],
-                        focusNode: _focusNodes[index],
-                        textAlign: TextAlign.center,
-                        keyboardType: TextInputType.number,
-                        maxLength: 1,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        decoration: InputDecoration(
-                          counterText: '',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Colors.blue.shade600,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        onChanged: (value) => _onOtpChanged(index, value),
+                    child: TextField(
+                      controller: _otpControllers[index],
+                      focusNode: _focusNodes[index],
+                      textAlign: TextAlign.center,
+                      keyboardType: TextInputType.number,
+                      textInputAction: index == 5
+                          ? TextInputAction.done
+                          : TextInputAction.next,
+                      maxLength: 1,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
+                      decoration: InputDecoration(
+                        counterText: '',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Colors.blue.shade600,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      smartDashesType: SmartDashesType.disabled,
+                      smartQuotesType: SmartQuotesType.disabled,
+                      onTap: () {
+                        _otpControllers[index].selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: _otpControllers[index].text.length,
+                        );
+                      },
+                      onChanged: (value) => _handleOtpInput(index, value),
                     ),
                   );
                 }),

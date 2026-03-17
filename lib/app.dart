@@ -19,6 +19,8 @@ import 'package:mobile_flutter/presentation/providers/post_provider.dart';
 import 'package:mobile_flutter/presentation/providers/zone_provider.dart';
 import 'package:mobile_flutter/presentation/providers/location_provider.dart';
 import 'package:mobile_flutter/presentation/providers/notification_provider.dart';
+import 'package:mobile_flutter/presentation/providers/statistics_provider.dart';
+import 'package:mobile_flutter/presentation/providers/health_info_provider.dart';
 
 // Widgets
 import 'package:mobile_flutter/presentation/widgets/zone_warning_banner.dart';
@@ -40,6 +42,8 @@ class SafeZoneApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => StatisticsProvider()),
+        ChangeNotifierProvider(create: (_) => HealthInfoProvider()),
 
         // Post Provider với dependencies
         ChangeNotifierProvider(

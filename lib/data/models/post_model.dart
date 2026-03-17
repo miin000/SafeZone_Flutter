@@ -4,6 +4,7 @@ import 'user_model.dart';
 
 // KEEP ENUMS HERE
 enum PostStatus { pending, approved, rejected }
+
 enum PostSource { government, healthWorker, citizen, verifiedUser }
 
 class PostModel extends Equatable {
@@ -50,7 +51,9 @@ class PostModel extends Equatable {
       status: _parseStatus(json['status']),
       location: json['location'],
       diseaseType: json['diseaseType'],
-      author: json['author'] != null ? UserModel.fromJson(json['author']) : null,
+      author: json['author'] != null
+          ? UserModel.fromJson(json['author'])
+          : null,
       authorId: json['authorId'] ?? '',
       helpfulCount: json['helpfulCount'] ?? 0,
       notHelpfulCount: json['notHelpfulCount'] ?? 0,
@@ -60,7 +63,9 @@ class PostModel extends Equatable {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
+          : null,
     );
   }
 
@@ -161,6 +166,10 @@ class PostModel extends Equatable {
         return Icons.person;
     }
   }
+
+  bool get isApproved => status == PostStatus.approved;
+
+  String get authorName => author?.name ?? 'Ẩn danh';
 
   @override
   List<Object?> get props => [

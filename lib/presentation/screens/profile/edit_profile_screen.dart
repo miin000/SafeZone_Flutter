@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_flutter/presentation/providers/auth_provider.dart';
+import 'package:mobile_flutter/presentation/screens/auth/verification_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -15,6 +18,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
   bool _isLoading = false;
+
+  final ImagePicker _picker = ImagePicker();
+  String? _newAvatarUrl;
+  bool _isUploadingAvatar = false;
+
+  Future<void> _openEmailVerificationFlow() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VerificationScreen(
+          type: VerificationType.email,
+          canSkip: false,
+          onVerified: () {
+            context.read<AuthProvider>().fetchProfile();
+          },
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      context.read<AuthProvider>().fetchProfile();
+    }
+  }
 
   @override
   void initState() {
@@ -33,6 +59,89 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (image == null) return;
+
+      setState(() {
+        _isUploadingAvatar = true;
+      });
+
+      final pathParts = image.path.split(RegExp(r'[\\/]'));
+      final String fileName = pathParts.isNotEmpty
+          ? pathParts.last
+          : 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileBytes = await image.readAsBytes();
+
+      FormData formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(fileBytes, filename: fileName),
+        'upload_preset': 'safezone',
+        'folder': 'safezone/avatars',
+      });
+
+      final dio = Dio();
+      final response = await dio.post(
+        'https://api.cloudinary.com/v1_1/ddquvbdc7/image/upload',
+        data: formData,
+      );
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          response.data != null &&
+          response.data['secure_url'] != null) {
+        setState(() {
+          _newAvatarUrl = response.data['secure_url'];
+        });
+      } else {
+        throw Exception('Upload thất bại: phản hồi không hợp lệ từ Cloudinary');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tải ảnh thành công. Nhấn dấu ✓ để lưu avatar.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      String message = 'Không thể tải ảnh lên. Vui lòng thử lại!';
+
+      if (e.response?.data is Map && e.response?.data['error'] != null) {
+        final err = e.response!.data['error'];
+        if (err is Map && err['message'] != null) {
+          message = 'Lỗi Cloudinary: ${err['message']}';
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể tải ảnh lên: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingAvatar = false;
+        });
+      }
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -42,6 +151,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final success = await authProvider.updateProfile({
       'name': _nameController.text.trim(),
       'phone': _phoneController.text.trim(),
+      'email': _emailController.text.trim(),
+      if (_newAvatarUrl != null) 'avatarUrl': _newAvatarUrl,
     });
 
     setState(() => _isLoading = false);
@@ -90,31 +201,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             children: [
               // Avatar
               GestureDetector(
-                onTap: () {
-                  // TODO: Implement image picker
-                },
+                onTap: _pickAndUploadImage,
                 child: Stack(
                   children: [
                     CircleAvatar(
                       radius: 60,
                       backgroundColor: Colors.blue.shade100,
-                      child: user?.avatarUrl != null
+                      child: _isUploadingAvatar
+                          ? const CircularProgressIndicator()
+                          : (_newAvatarUrl ?? user?.avatarUrl) != null
                           ? ClipOval(
-                        child: Image.network(
-                          user!.avatarUrl!,
-                          width: 116,
-                          height: 116,
-                          fit: BoxFit.cover,
-                        ),
-                      )
+                              child: Image.network(
+                                (_newAvatarUrl ?? user!.avatarUrl!),
+                                width: 116,
+                                height: 116,
+                                fit: BoxFit.cover,
+                              ),
+                            )
                           : Text(
-                        user?.name.substring(0, 1).toUpperCase() ?? 'U',
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
+                              user?.name.substring(0, 1).toUpperCase() ?? 'U',
+                              style: const TextStyle(
+                                fontSize: 48,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
                     ),
                     Positioned(
                       bottom: 0,
@@ -139,10 +250,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 8),
               Text(
                 'Chạm để đổi ảnh đại diện',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
               const SizedBox(height: 32),
 
@@ -168,7 +276,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Email field (read-only)
+              // Email field
               TextFormField(
                 controller: _emailController,
                 decoration: InputDecoration(
@@ -177,12 +285,79 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  filled: true,
-                  fillColor: Colors.grey.shade100,
                 ),
-                readOnly: true,
-                enabled: false,
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value != null && value.trim().isNotEmpty) {
+                    final emailRegex = RegExp(
+                      r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                    );
+                    if (!emailRegex.hasMatch(value)) {
+                      return 'Email không hợp lệ';
+                    }
+                  }
+                  return null;
+                },
               ),
+              const SizedBox(height: 16),
+
+              // Email verification status and button
+              if (user != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: user.isEmailVerified
+                        ? Colors.green.shade50
+                        : Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: user.isEmailVerified
+                          ? Colors.green.shade200
+                          : Colors.orange.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        user.isEmailVerified
+                            ? Icons.verified
+                            : Icons.info_outline,
+                        color: user.isEmailVerified
+                            ? Colors.green
+                            : Colors.orange,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user.isEmailVerified
+                                  ? 'Email đã được xác nhận'
+                                  : 'Email chưa được xác nhận',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: user.isEmailVerified
+                                    ? Colors.green.shade700
+                                    : Colors.orange.shade700,
+                              ),
+                            ),
+                            if (!user.isEmailVerified)
+                              Text(
+                                'Nhấn nút bên để gửi mã xác nhận',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 16),
 
               // Phone field
@@ -218,7 +393,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         label: 'Email',
                         verified: user?.isEmailVerified ?? false,
                         onVerify: () {
-                          // TODO: Implement email verification
+                          _openEmailVerificationFlow();
                         },
                       ),
                       const SizedBox(height: 8),

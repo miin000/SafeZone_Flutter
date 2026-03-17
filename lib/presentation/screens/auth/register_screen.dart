@@ -17,8 +17,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _citizenIdController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _provinceController = TextEditingController();
+  final _districtController = TextEditingController();
+  final _wardController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  String? _selectedGender;
+  DateTime? _selectedDateOfBirth;
+  bool _consentGiven = false;
+
+  final List<Map<String, String>> _genderOptions = [
+    {'value': 'male', 'label': 'Nam'},
+    {'value': 'female', 'label': 'Nữ'},
+    {'value': 'other', 'label': 'Khác'},
+  ];
 
   @override
   void dispose() {
@@ -27,6 +41,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _citizenIdController.dispose();
+    _addressController.dispose();
+    _provinceController.dispose();
+    _districtController.dispose();
+    _wardController.dispose();
     super.dispose();
   }
 
@@ -41,6 +60,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
       email: _emailController.text.trim().isNotEmpty
           ? _emailController.text.trim()
           : null,
+      gender: _selectedGender,
+      dateOfBirth: _selectedDateOfBirth?.toIso8601String().split('T').first,
+      citizenId: _citizenIdController.text.trim().isNotEmpty
+          ? _citizenIdController.text.trim()
+          : null,
+      fullAddress: _addressController.text.trim().isNotEmpty
+          ? _addressController.text.trim()
+          : null,
+      province: _provinceController.text.trim().isNotEmpty
+          ? _provinceController.text.trim()
+          : null,
+      district: _districtController.text.trim().isNotEmpty
+          ? _districtController.text.trim()
+          : null,
+      ward: _wardController.text.trim().isNotEmpty
+          ? _wardController.text.trim()
+          : null,
+      consentGiven: _consentGiven,
     );
 
     if (mounted) {
@@ -224,6 +261,139 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 16),
 
+                        // Gender selection
+                        DropdownButtonFormField<String>(
+                          value: _selectedGender,
+                          decoration: InputDecoration(
+                            labelText: 'Giới tính',
+                            prefixIcon: const Icon(Icons.wc_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          items: _genderOptions.map((g) => DropdownMenuItem(
+                            value: g['value'],
+                            child: Text(g['label']!),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _selectedGender = v),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Date of Birth
+                        GestureDetector(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime(2000, 1, 1),
+                              firstDate: DateTime(1920),
+                              lastDate: DateTime.now(),
+                              helpText: 'Chọn ngày sinh',
+                            );
+                            if (picked != null) {
+                              setState(() => _selectedDateOfBirth = picked);
+                            }
+                          },
+                          child: AbsorbPointer(
+                            child: TextFormField(
+                              decoration: InputDecoration(
+                                labelText: 'Ngày sinh',
+                                prefixIcon: const Icon(Icons.calendar_today_outlined),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                hintText: _selectedDateOfBirth != null
+                                    ? '${_selectedDateOfBirth!.day}/${_selectedDateOfBirth!.month}/${_selectedDateOfBirth!.year}'
+                                    : 'Chọn ngày sinh',
+                              ),
+                              controller: TextEditingController(
+                                text: _selectedDateOfBirth != null
+                                    ? '${_selectedDateOfBirth!.day}/${_selectedDateOfBirth!.month}/${_selectedDateOfBirth!.year}'
+                                    : '',
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Citizen ID
+                        TextFormField(
+                          controller: _citizenIdController,
+                          decoration: InputDecoration(
+                            labelText: 'Số CCCD/CMND (tùy chọn)',
+                            prefixIcon: const Icon(Icons.badge_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Address section header
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Địa chỉ (tùy chọn)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+
+                        // Province
+                        TextFormField(
+                          controller: _provinceController,
+                          decoration: InputDecoration(
+                            labelText: 'Tỉnh/Thành phố',
+                            prefixIcon: const Icon(Icons.location_city_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // District
+                        TextFormField(
+                          controller: _districtController,
+                          decoration: InputDecoration(
+                            labelText: 'Quận/Huyện',
+                            prefixIcon: const Icon(Icons.map_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Ward
+                        TextFormField(
+                          controller: _wardController,
+                          decoration: InputDecoration(
+                            labelText: 'Phường/Xã',
+                            prefixIcon: const Icon(Icons.home_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Full address
+                        TextFormField(
+                          controller: _addressController,
+                          decoration: InputDecoration(
+                            labelText: 'Địa chỉ chi tiết',
+                            prefixIcon: const Icon(Icons.place_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
                         // Password field
                         TextFormField(
                           controller: _passwordController,
@@ -292,7 +462,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+
+                        // Consent checkbox
+                        CheckboxListTile(
+                          value: _consentGiven,
+                          onChanged: (v) => setState(() => _consentGiven = v ?? false),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text(
+                            'Tôi đồng ý cho phép SafeZone thu thập và sử dụng thông tin cá nhân phục vụ giám sát dịch bệnh',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
 
                         // Register button
                         ElevatedButton(

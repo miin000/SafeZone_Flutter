@@ -8,7 +8,20 @@ import '../../models/verification_model.dart';
 
 abstract class AuthRemoteDatasource {
   Future<AuthResponse> login(String phone, String password);
-  Future<AuthResponse> register(String phone, String password, String name, String? email);
+  Future<AuthResponse> register({
+    required String phone,
+    required String password,
+    required String name,
+    String? email,
+    String? gender,
+    String? dateOfBirth,
+    String? citizenId,
+    String? fullAddress,
+    String? province,
+    String? district,
+    String? ward,
+    bool consentGiven,
+  });
   Future<UserModel> getProfile();
   Future<UserModel> updateProfile(Map<String, dynamic> data);
   Future<void> logout();
@@ -36,6 +49,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
         data: {
           'phone': phone,
           'password': password,
+          'source': 'mobile',
         },
       );
       
@@ -56,12 +70,20 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
   }
 
   @override
-  Future<AuthResponse> register(
-    String phone,
-    String password,
-    String name,
+  Future<AuthResponse> register({
+    required String phone,
+    required String password,
+    required String name,
     String? email,
-  ) async {
+    String? gender,
+    String? dateOfBirth,
+    String? citizenId,
+    String? fullAddress,
+    String? province,
+    String? district,
+    String? ward,
+    bool consentGiven = false,
+  }) async {
     try {
       final response = await _apiClient.post(
         ApiConstants.register,
@@ -70,6 +92,14 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
           'password': password,
           'name': name,
           if (email != null && email.isNotEmpty) 'email': email,
+          if (gender != null) 'gender': gender,
+          if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
+          if (citizenId != null && citizenId.isNotEmpty) 'citizenId': citizenId,
+          if (fullAddress != null && fullAddress.isNotEmpty) 'fullAddress': fullAddress,
+          if (province != null && province.isNotEmpty) 'province': province,
+          if (district != null && district.isNotEmpty) 'district': district,
+          if (ward != null && ward.isNotEmpty) 'ward': ward,
+          'consentGiven': consentGiven,
         },
       );
       

@@ -6,19 +6,13 @@ import '../../data/models/user_model.dart';
 import '../../data/models/verification_model.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 
-enum AuthStatus {
-  initial,
-  loading,
-  authenticated,
-  unauthenticated,
-  error,
-}
+enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _repository;
 
   AuthProvider({AuthRepository? repository})
-      : _repository = repository ?? AuthRepositoryImpl();
+    : _repository = repository ?? AuthRepositoryImpl();
 
   // State
   AuthStatus _status = AuthStatus.initial;
@@ -35,16 +29,17 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _status == AuthStatus.loading;
   VerificationStatus? get verificationStatus => _verificationStatus;
   bool get isVerificationLoading => _isVerificationLoading;
-  
+
   // Check if user is fully verified (both email and phone)
-  bool get isFullyVerified => _verificationStatus?.isFullyVerified ?? 
+  bool get isFullyVerified =>
+      _verificationStatus?.isFullyVerified ??
       (_user?.isEmailVerified == true && _user?.isPhoneVerified == true);
-  
-  bool get isEmailVerified => _verificationStatus?.isEmailVerified ?? 
-      _user?.isEmailVerified ?? false;
-  
-  bool get isPhoneVerified => _verificationStatus?.isPhoneVerified ?? 
-      _user?.isPhoneVerified ?? false;
+
+  bool get isEmailVerified =>
+      _verificationStatus?.isEmailVerified ?? _user?.isEmailVerified ?? false;
+
+  bool get isPhoneVerified =>
+      _verificationStatus?.isPhoneVerified ?? _user?.isPhoneVerified ?? false;
 
   void _setStatus(AuthStatus status) {
     _status = status;
@@ -64,10 +59,10 @@ class AuthProvider extends ChangeNotifier {
   // Check auth status on app start
   Future<void> checkAuthStatus() async {
     _setStatus(AuthStatus.loading);
-    
+
     try {
       final isLoggedIn = await StorageUtils.isLoggedIn();
-      
+
       if (isLoggedIn) {
         final isValid = await _repository.verifyToken();
         if (isValid) {
@@ -94,10 +89,10 @@ class AuthProvider extends ChangeNotifier {
       final response = await _repository.login(phone, password);
       _user = response.user;
       _setStatus(AuthStatus.authenticated);
-      
+
       // Send FCM token to server
       await _updateFcmToken();
-      
+
       return true;
     } catch (e) {
       _setError(e.toString().replaceAll('Exception: ', ''));
@@ -112,18 +107,39 @@ class AuthProvider extends ChangeNotifier {
     String password,
     String name, {
     String? email,
+    String? gender,
+    String? dateOfBirth,
+    String? citizenId,
+    String? fullAddress,
+    String? province,
+    String? district,
+    String? ward,
+    bool consentGiven = false,
   }) async {
     _setStatus(AuthStatus.loading);
     _setError(null);
 
     try {
-      final response = await _repository.register(phone, password, name, email);
+      final response = await _repository.register(
+        phone: phone,
+        password: password,
+        name: name,
+        email: email,
+        gender: gender,
+        dateOfBirth: dateOfBirth,
+        citizenId: citizenId,
+        fullAddress: fullAddress,
+        province: province,
+        district: district,
+        ward: ward,
+        consentGiven: consentGiven,
+      );
       _user = response.user;
       _setStatus(AuthStatus.authenticated);
-      
+
       // Send FCM token to server
       await _updateFcmToken();
-      
+
       return true;
     } catch (e) {
       _setError(e.toString().replaceAll('Exception: ', ''));
@@ -131,7 +147,7 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   // Update FCM token on server
   Future<void> _updateFcmToken() async {
     try {

@@ -7,15 +7,18 @@ import '../../../core/services/geocoding_service.dart';
 import '../../providers/report_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
 import 'verification_required_dialog.dart';
+import '../auth/verification_screen.dart';
 
 /// Screen for detailed case report with full patient information
 class DetailedCaseReportScreen extends StatefulWidget {
   const DetailedCaseReportScreen({super.key});
 
   @override
-  State<DetailedCaseReportScreen> createState() => _DetailedCaseReportScreenState();
+  State<DetailedCaseReportScreen> createState() =>
+      _DetailedCaseReportScreenState();
 }
 
 class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
@@ -158,7 +161,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         _latController.text = result.latitude.toStringAsFixed(6);
         _lonController.text = result.longitude.toStringAsFixed(6);
       });
-      
+
       // Auto-fill address from coordinates
       _fetchAndSetAddress(result.latitude, result.longitude);
     }
@@ -232,6 +235,28 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
     final isVerified = await VerificationRequiredDialog.show(context);
     if (!isVerified) return;
 
+    final authProvider = context.read<AuthProvider>();
+    final hasEmail = authProvider.user?.email?.isNotEmpty == true;
+    if (!hasEmail) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng cập nhật email trước khi gửi báo cáo'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final otpConfirmed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const VerificationScreen(
+          type: VerificationType.email,
+          canSkip: false,
+        ),
+      ),
+    );
+    if (otpConfirmed != true) return;
+
     // Build patient info
     final patientInfo = PatientInfo(
       fullName: _patientNameController.text.trim(),
@@ -247,7 +272,9 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
       isHospitalized: _isHospitalized,
       travelHistory: _travelHistoryController.text.trim(),
       contactHistory: _contactHistoryController.text.trim(),
-      underlyingConditions: _selectedConditions.isNotEmpty ? _selectedConditions : null,
+      underlyingConditions: _selectedConditions.isNotEmpty
+          ? _selectedConditions
+          : null,
     );
 
     final request = CreateReportRequest(
@@ -388,9 +415,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
               if (provider.isLoading)
                 Container(
                   color: Colors.black26,
-                  child: const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  child: const Center(child: CircularProgressIndicator()),
                 ),
             ],
           );
@@ -416,7 +441,8 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
           }).toList(),
           onChanged: (value) => setState(() => _selectedDiseaseType = value),
           validator: (value) {
-            if (value == null || value.isEmpty) return 'Vui lòng chọn loại bệnh';
+            if (value == null || value.isEmpty)
+              return 'Vui lòng chọn loại bệnh';
             return null;
           },
         ),
@@ -502,7 +528,9 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                 decoration: InputDecoration(
                   labelText: 'Tuổi',
                   prefixIcon: const Icon(Icons.cake),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 keyboardType: TextInputType.number,
               ),
@@ -514,7 +542,9 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                 decoration: InputDecoration(
                   labelText: 'Giới tính',
                   prefixIcon: const Icon(Icons.wc),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 items: const [
                   DropdownMenuItem(value: 'male', child: Text('Nam')),
@@ -597,7 +627,9 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
             decoration: InputDecoration(
               labelText: 'Ngày khởi phát triệu chứng',
               prefixIcon: const Icon(Icons.calendar_today),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: Text(
               _symptomOnsetDate != null

@@ -5,10 +5,11 @@ import '../../../data/models/report_model.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../providers/report_provider.dart';
 import '../../providers/location_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
 import 'verification_required_dialog.dart';
+import '../auth/verification_screen.dart';
 import 'detailed_case_report_screen.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -31,6 +32,14 @@ class _ReportScreenState extends State<ReportScreen> {
   // Form state
   String? _selectedDiseaseType;
   final List<String> _selectedSymptoms = [];
+  String _reportType = 'case_report'; // 'case_report' or 'outbreak_alert'
+  String _severityLevel = 'medium';
+  bool _isSelfReport = true;
+  bool _reporterConsent = false;
+  // Epidemiological
+  bool? _hasContactWithPatient;
+  bool? _hasVisitedEpidemicArea;
+  bool? _hasSimilarCasesNearby;
 
   // Location state
   LatLng? _selectedCaseLocation; // Case/incident location from map
@@ -65,6 +74,18 @@ class _ReportScreenState extends State<ReportScreen> {
     'Chảy máu chân răng',
     'Xuất huyết dưới da',
   ];
+
+  bool get _isOutbreakAlert => _reportType == 'outbreak_alert';
+
+  Color get _themeColor =>
+      _isOutbreakAlert ? Colors.orange.shade700 : Colors.red.shade600;
+
+  String get _reportTitle =>
+      _isOutbreakAlert ? 'Cảnh báo ổ dịch' : 'Báo cáo nhanh ca bệnh';
+
+  String get _reportSubtitle => _isOutbreakAlert
+      ? 'Dùng khi có nhiều ca nghi nhiễm tập trung trong khu vực.'
+      : 'Dùng cho trường hợp cá nhân hoặc ca nghi nhiễm đơn lẻ.';
 
   @override
   void dispose() {
@@ -112,7 +133,7 @@ class _ReportScreenState extends State<ReportScreen> {
         _latController.text = result.latitude.toStringAsFixed(6);
         _lonController.text = result.longitude.toStringAsFixed(6);
       });
-      
+
       // Auto-fill address from coordinates
       _fetchAndSetAddress(result.latitude, result.longitude);
     }
@@ -139,10 +160,13 @@ class _ReportScreenState extends State<ReportScreen> {
         _latController.text = _reporterLocation!.latitude.toStringAsFixed(6);
         _lonController.text = _reporterLocation!.longitude.toStringAsFixed(6);
       });
-      
+
       // Auto-fill address from coordinates
-      _fetchAndSetAddress(_reporterLocation!.latitude, _reporterLocation!.longitude);
-      
+      _fetchAndSetAddress(
+        _reporterLocation!.latitude,
+        _reporterLocation!.longitude,
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Đã sử dụng vị trí hiện tại của bạn'),
@@ -194,12 +218,35 @@ class _ReportScreenState extends State<ReportScreen> {
       return; // User chose not to verify or cancelled
     }
 
+    final authProvider = context.read<AuthProvider>();
+    final hasEmail = authProvider.user?.email?.isNotEmpty == true;
+    if (!hasEmail) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng cập nhật email trước khi gửi báo cáo'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final otpConfirmed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const VerificationScreen(
+          type: VerificationType.email,
+          canSkip: false,
+        ),
+      ),
+    );
+    if (otpConfirmed != true) {
+      return;
+    }
+
     final request = CreateReportRequest(
       diseaseType: _selectedDiseaseType!,
       description: _descriptionController.text.trim(),
       lat: lat,
       lon: lon,
-      // Include reporter's current location if available
       reporterLat: _reporterLocation?.latitude,
       reporterLon: _reporterLocation?.longitude,
       address: _addressController.text.trim().isNotEmpty
@@ -207,6 +254,13 @@ class _ReportScreenState extends State<ReportScreen> {
           : null,
       symptoms: _selectedSymptoms.isNotEmpty ? _selectedSymptoms : null,
       affectedCount: int.tryParse(_affectedCountController.text),
+      reportType: _reportType,
+      severityLevel: _severityLevel,
+      isSelfReport: _isSelfReport,
+      reporterConsent: _reporterConsent,
+      hasContactWithPatient: _hasContactWithPatient,
+      hasVisitedEpidemicArea: _hasVisitedEpidemicArea,
+      hasSimilarCasesNearby: _hasSimilarCasesNearby,
     );
 
     final provider = context.read<ReportProvider>();
@@ -216,10 +270,12 @@ class _ReportScreenState extends State<ReportScreen> {
       if (success) {
         // Refresh notifications to show the new notification
         context.read<NotificationProvider>().loadNotifications();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Gửi báo cáo thành công! Kiểm tra tab Thông báo để theo dõi.'),
+            content: Text(
+              'Gửi báo cáo thành công! Kiểm tra tab Thông báo để theo dõi.',
+            ),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 3),
           ),
@@ -247,8 +303,37 @@ class _ReportScreenState extends State<ReportScreen> {
       _selectedDiseaseType = null;
       _selectedSymptoms.clear();
       _selectedCaseLocation = null;
-      // Keep reporter location as it doesn't change
+      _reportType = 'case_report';
+      _severityLevel = 'medium';
+      _isSelfReport = true;
+      _reporterConsent = false;
+      _hasContactWithPatient = null;
+      _hasVisitedEpidemicArea = null;
+      _hasSimilarCasesNearby = null;
     });
+  }
+
+  Widget _buildYesNoQuestion(
+    String question,
+    bool? value,
+    ValueChanged<bool?> onChanged,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(child: Text(question, style: const TextStyle(fontSize: 13))),
+          ToggleButtons(
+            isSelected: [value == true, value == false],
+            onPressed: (i) => onChanged(i == 0 ? true : false),
+            borderRadius: BorderRadius.circular(8),
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 32),
+            textStyle: const TextStyle(fontSize: 12),
+            children: const [Text('Có'), Text('Không')],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildReportTypeSelector() {
@@ -261,10 +346,7 @@ class _ReportScreenState extends State<ReportScreen> {
           children: [
             const Text(
               'Chọn loại báo cáo',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Row(
@@ -273,31 +355,42 @@ class _ReportScreenState extends State<ReportScreen> {
                   child: _ReportTypeCard(
                     icon: Icons.flash_on,
                     title: 'Báo cáo nhanh',
-                    description: 'Thông tin cơ bản về dịch bệnh',
+                    description: 'Ca đơn lẻ/cá nhân',
                     color: Colors.red,
-                    isSelected: true,
-                    onTap: () {}, // Already on this screen
+                    isSelected: _reportType == 'case_report',
+                    onTap: () => setState(() => _reportType = 'case_report'),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _ReportTypeCard(
                     icon: Icons.assignment,
                     title: 'Chi tiết ca bệnh',
-                    description: 'Thông tin đầy đủ bệnh nhân',
+                    description: 'Đầy đủ thông tin',
                     color: Colors.deepOrange,
                     isSelected: false,
                     onTap: () async {
                       final result = await Navigator.of(context).push<bool>(
                         MaterialPageRoute(
-                          builder: (context) => const DetailedCaseReportScreen(),
+                          builder: (context) =>
+                              const DetailedCaseReportScreen(),
                         ),
                       );
                       if (result == true) {
-                        // Report was submitted successfully
                         _resetForm();
                       }
                     },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ReportTypeCard(
+                    icon: Icons.warning_amber,
+                    title: 'Cảnh báo ổ dịch',
+                    description: 'Cụm nhiều ca nghi nhiễm',
+                    color: Colors.orange,
+                    isSelected: _reportType == 'outbreak_alert',
+                    onTap: () => setState(() => _reportType = 'outbreak_alert'),
                   ),
                 ),
               ],
@@ -313,7 +406,7 @@ class _ReportScreenState extends State<ReportScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Báo cáo dịch bệnh'),
-        backgroundColor: Colors.red.shade600,
+        backgroundColor: _themeColor,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -340,14 +433,18 @@ class _ReportScreenState extends State<ReportScreen> {
 
                       // Header
                       Card(
-                        color: Colors.red.shade50,
+                        color: _isOutbreakAlert
+                            ? Colors.orange.shade50
+                            : Colors.red.shade50,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(
                             children: [
                               Icon(
-                                Icons.warning_amber_rounded,
-                                color: Colors.red.shade600,
+                                _isOutbreakAlert
+                                    ? Icons.campaign
+                                    : Icons.warning_amber_rounded,
+                                color: _themeColor,
                                 size: 32,
                               ),
                               const SizedBox(width: 12),
@@ -356,19 +453,23 @@ class _ReportScreenState extends State<ReportScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Báo cáo nhanh',
+                                      _reportTitle,
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.red.shade800,
+                                        color: _isOutbreakAlert
+                                            ? Colors.orange.shade900
+                                            : Colors.red.shade800,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Thông tin sẽ được xác minh bởi cơ quan y tế',
+                                      _reportSubtitle,
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: Colors.red.shade600,
+                                        color: _isOutbreakAlert
+                                            ? Colors.orange.shade700
+                                            : Colors.red.shade600,
                                       ),
                                     ),
                                   ],
@@ -415,7 +516,9 @@ class _ReportScreenState extends State<ReportScreen> {
                         controller: _descriptionController,
                         decoration: InputDecoration(
                           labelText: 'Mô tả chi tiết *',
-                          hintText: 'Mô tả tình trạng, triệu chứng...',
+                          hintText: _isOutbreakAlert
+                              ? 'Mô tả ổ dịch: khu vực, số ca nghi nhiễm, diễn biến...'
+                              : 'Mô tả tình trạng, triệu chứng...',
                           prefixIcon: const Icon(Icons.description),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -482,8 +585,16 @@ class _ReportScreenState extends State<ReportScreen> {
                                         }
                                       });
                                     },
-                                    selectedColor: Colors.red.shade100,
-                                    checkmarkColor: Colors.red.shade700,
+                                    selectedColor:
+                                        (_isOutbreakAlert
+                                                ? Colors.orange
+                                                : Colors.red)
+                                            .shade100,
+                                    checkmarkColor:
+                                        (_isOutbreakAlert
+                                                ? Colors.orange
+                                                : Colors.red)
+                                            .shade700,
                                   );
                                 }).toList(),
                               ),
@@ -502,10 +613,10 @@ class _ReportScreenState extends State<ReportScreen> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.location_on,
                                     size: 20,
-                                    color: Colors.red,
+                                    color: _themeColor,
                                   ),
                                   const SizedBox(width: 8),
                                   const Expanded(
@@ -554,7 +665,9 @@ class _ReportScreenState extends State<ReportScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Chọn vị trí nơi xảy ra ca bệnh (có thể khác vị trí hiện tại của bạn)',
+                                _isOutbreakAlert
+                                    ? 'Chọn vị trí trung tâm của ổ dịch/cụm ca bệnh'
+                                    : 'Chọn vị trí nơi xảy ra ca bệnh (có thể khác vị trí hiện tại của bạn)',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade600,
@@ -571,9 +684,11 @@ class _ReportScreenState extends State<ReportScreen> {
                                       icon: const Icon(Icons.map, size: 18),
                                       label: const Text('Chọn từ bản đồ'),
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.red.shade600,
+                                        foregroundColor: _themeColor,
                                         side: BorderSide(
-                                          color: Colors.red.shade300,
+                                          color: _isOutbreakAlert
+                                              ? Colors.orange.shade300
+                                              : Colors.red.shade300,
                                         ),
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 10,
@@ -744,7 +859,9 @@ class _ReportScreenState extends State<ReportScreen> {
                         controller: _addressController,
                         decoration: InputDecoration(
                           labelText: 'Địa chỉ chi tiết',
-                          hintText: 'Số nhà, đường, phường/xã...',
+                          hintText: _isOutbreakAlert
+                              ? 'Ví dụ: Trường học/khu dân cư/chợ bị ảnh hưởng...'
+                              : 'Số nhà, đường, phường/xã...',
                           prefixIcon: const Icon(Icons.home),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -758,7 +875,9 @@ class _ReportScreenState extends State<ReportScreen> {
                       TextFormField(
                         controller: _affectedCountController,
                         decoration: InputDecoration(
-                          labelText: 'Số người bị ảnh hưởng',
+                          labelText: _isOutbreakAlert
+                              ? 'Số ca nghi nhiễm trong cụm *'
+                              : 'Số người bị ảnh hưởng',
                           prefixIcon: const Icon(Icons.people),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -771,31 +890,175 @@ class _ReportScreenState extends State<ReportScreen> {
                             if (count == null || count < 1) {
                               return 'Số người phải >= 1';
                             }
+                            if (_isOutbreakAlert && count < 2) {
+                              return 'Cảnh báo ổ dịch cần ít nhất 2 ca nghi nhiễm';
+                            }
                           }
                           return null;
                         },
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
+
+                      // Severity level
+                      DropdownButtonFormField<String>(
+                        value: _severityLevel,
+                        decoration: InputDecoration(
+                          labelText: _isOutbreakAlert
+                              ? 'Mức độ nguy cơ ổ dịch'
+                              : 'Mức độ nghiêm trọng',
+                          prefixIcon: const Icon(Icons.priority_high),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'low', child: Text('Thấp')),
+                          DropdownMenuItem(
+                            value: 'medium',
+                            child: Text('Trung bình'),
+                          ),
+                          DropdownMenuItem(value: 'high', child: Text('Cao')),
+                          DropdownMenuItem(
+                            value: 'critical',
+                            child: Text('Nghiêm trọng'),
+                          ),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => _severityLevel = v ?? 'medium'),
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (_isOutbreakAlert)
+                        Card(
+                          color: Colors.orange.shade50,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.tips_and_updates,
+                                  color: Colors.orange.shade800,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Nên ghi rõ mốc thời gian xuất hiện ca đầu tiên, nhóm đối tượng (trường học/khu dân cư), và phạm vi ảnh hưởng để cơ quan y tế xử lý nhanh hơn.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.orange.shade900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      if (_isOutbreakAlert) const SizedBox(height: 16),
+
+                      // Epidemiological info
+                      if (!_isOutbreakAlert)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.biotech, size: 20),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Thông tin dịch tễ',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                _buildYesNoQuestion(
+                                  'Có tiếp xúc với bệnh nhân?',
+                                  _hasContactWithPatient,
+                                  (v) => setState(
+                                    () => _hasContactWithPatient = v,
+                                  ),
+                                ),
+                                _buildYesNoQuestion(
+                                  'Có đến vùng dịch gần đây?',
+                                  _hasVisitedEpidemicArea,
+                                  (v) => setState(
+                                    () => _hasVisitedEpidemicArea = v,
+                                  ),
+                                ),
+                                _buildYesNoQuestion(
+                                  'Có ca tương tự gần nơi ở?',
+                                  _hasSimilarCasesNearby,
+                                  (v) => setState(
+                                    () => _hasSimilarCasesNearby = v,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (!_isOutbreakAlert) const SizedBox(height: 16),
+
+                      // Self report toggle
+                      if (!_isOutbreakAlert)
+                        SwitchListTile(
+                          title: const Text('Tự báo cáo cho bản thân'),
+                          subtitle: Text(
+                            _isSelfReport
+                                ? 'Bạn là người bệnh'
+                                : 'Bạn báo cáo cho người khác',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          value: _isSelfReport,
+                          onChanged: (v) => setState(() => _isSelfReport = v),
+                          activeColor: _themeColor,
+                        ),
+
+                      // Consent
+                      CheckboxListTile(
+                        value: _reporterConsent,
+                        onChanged: (v) =>
+                            setState(() => _reporterConsent = v ?? false),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Tôi đồng ý chia sẻ thông tin này với cơ quan y tế để phục vụ giám sát dịch bệnh',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
 
                       // Submit button
                       ElevatedButton(
                         onPressed: provider.isLoading ? null : _submitReport,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade600,
+                          backgroundColor: _themeColor,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.send),
-                            SizedBox(width: 8),
+                            const Icon(Icons.send),
+                            const SizedBox(width: 8),
                             Text(
-                              'Gửi báo cáo',
-                              style: TextStyle(
+                              _isOutbreakAlert
+                                  ? 'Gửi cảnh báo ổ dịch'
+                                  : 'Gửi báo cáo nhanh',
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -902,10 +1165,7 @@ class _ReportTypeCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               description,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
               textAlign: TextAlign.center,
             ),
           ],

@@ -41,9 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pop(context);
               context.read<AuthProvider>().logout();
             },
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Đăng xuất'),
           ),
         ],
@@ -54,7 +52,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final settingsProvider = context.watch<SettingsProvider>();
     final user = authProvider.user;
 
     if (user == null) {
@@ -71,10 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               background: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      Colors.blue.shade600,
-                      Colors.blue.shade400,
-                    ],
+                    colors: [Colors.blue.shade600, Colors.blue.shade400],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -226,7 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               // Settings Section
               _MenuSection(
-                title: 'Cài đặt & Bảo mật',
+                title: 'Cài đặt',
                 items: [
                   _MenuItem(
                     icon: Icons.edit,
@@ -244,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _MenuItem(
                     icon: Icons.settings,
                     title: 'Cài đặt ứng dụng',
-                    subtitle: 'Giao diện, thông báo, ngôn ngữ',
+                    subtitle: 'Giao diện, ngôn ngữ',
                     onTap: () {
                       Navigator.push(
                         context,
@@ -252,35 +246,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           builder: (context) => const SettingsScreen(),
                         ),
                       );
-                    },
-                  ),
-                  _MenuItem(
-                    icon: Icons.notifications,
-                    title: 'Thông báo',
-                    subtitle: 'Cài đặt loại thông báo nhận',
-                    onTap: () {
-                      // TODO: Navigate to notification settings
-                    },
-                  ),
-                  _MenuItem(
-                    icon: Icons.security,
-                    title: 'Bảo mật',
-                    subtitle: 'Xác thực, quyền truy cập',
-                    trailing: Switch(
-                      value: settingsProvider.biometricAuth,
-                      onChanged: settingsProvider.toggleBiometricAuth,
-                      activeColor: Colors.blue,
-                    ),
-                    onTap: () {
-                      // TODO: Navigate to security settings
-                    },
-                  ),
-                  _MenuItem(
-                    icon: Icons.privacy_tip,
-                    title: 'Quyền riêng tư',
-                    subtitle: 'Kiểm soát dữ liệu cá nhân',
-                    onTap: () {
-                      // TODO: Navigate to privacy settings
                     },
                   ),
                 ],
@@ -351,10 +316,7 @@ class _VerificationBadge extends StatelessWidget {
   final bool verified;
   final String text;
 
-  const _VerificationBadge({
-    required this.verified,
-    required this.text,
-  });
+  const _VerificationBadge({required this.verified, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -392,10 +354,7 @@ class _MenuSection extends StatelessWidget {
   final String title;
   final List<Widget> items;
 
-  const _MenuSection({
-    required this.title,
-    required this.items,
-  });
+  const _MenuSection({required this.title, required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -420,9 +379,7 @@ class _MenuSection extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Column(
-              children: items,
-            ),
+            child: Column(children: items),
           ),
           const SizedBox(height: 20),
         ],
@@ -461,19 +418,13 @@ class _MenuItem extends StatelessWidget {
       ),
       title: Text(
         title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-        ),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.grey.shade600,
-        ),
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
       ),
-      trailing: trailing,
+      trailing: trailing ?? const Icon(Icons.chevron_right, color: Colors.grey),
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     );

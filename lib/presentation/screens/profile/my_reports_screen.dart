@@ -1,89 +1,92 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mobile_flutter/data/models/report_model.dart';
+import 'package:mobile_flutter/presentation/providers/report_provider.dart';
 
-class MyReportsScreen extends StatelessWidget {
+class MyReportsScreen extends StatefulWidget {
   const MyReportsScreen({super.key});
 
   @override
+  State<MyReportsScreen> createState() => _MyReportsScreenState();
+}
+
+class _MyReportsScreenState extends State<MyReportsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ReportProvider>().fetchMyReports();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Mock data - in real app, fetch from provider
-    final reports = [
-      ReportModel(
-        id: '1',
-        diseaseType: 'Sốt xuất huyết',
-        description: 'Phát hiện 2 ca sốt xuất huyết tại chung cư...',
-        lat: 21.0285,
-        lon: 105.8542,
-        address: 'Số 10 Phố Huế, Hai Bà Trưng, Hà Nội',
-        symptoms: ['sốt cao', 'đau đầu', 'phát ban'],
-        status: ReportStatus.verified,
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        updatedAt: DateTime.now(),
-        userId: 'user_001',
-      ),
-      ReportModel(
-        id: '2',
-        diseaseType: 'COVID-19',
-        description: 'Nghi ngờ ca COVID-19 tại tòa nhà văn phòng...',
-        lat: 21.0333,
-        lon: 105.7994,
-        address: 'Cầu Giấy, Hà Nội',
-        symptoms: ['ho', 'sốt', 'mệt mỏi'],
-        status: ReportStatus.pending,
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        updatedAt: DateTime.now(),
-        userId: 'user_001',
-      ),
-      ReportModel(
-        id: '3',
-        diseaseType: 'Tay chân miệng',
-        description: 'Trẻ em trong khu vực có triệu chứng tay chân miệng...',
-        lat: 21.0167,
-        lon: 105.8333,
-        address: 'Đống Đa, Hà Nội',
-        symptoms: ['sốt', 'nổi mụn nước'],
-        status: ReportStatus.rejected,
-        createdAt: DateTime.now().subtract(const Duration(days: 7)),
-        updatedAt: DateTime.now(),
-        userId: 'user_001',
-      ),
-    ];
+    final reportProvider = context.watch<ReportProvider>();
+    final reports = reportProvider.myReports;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Báo cáo của tôi'),
-      ),
-      body: reports.isEmpty
+      appBar: AppBar(title: const Text('Báo cáo của tôi')),
+      body: reportProvider.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : reportProvider.error != null
           ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.description, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            const Text(
-              'Chưa có báo cáo nào',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Có lỗi xảy ra:\n${reportProvider.error}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () =>
+                        context.read<ReportProvider>().fetchMyReports(),
+                    child: const Text('Thử lại'),
+                  ),
+                ],
+              ),
+            )
+          : reports.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.description,
+                    size: 64,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Chưa có báo cáo nào',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Các báo cáo của bạn sẽ hiển thị ở đây',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: () => context.read<ReportProvider>().fetchMyReports(),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: reports.length,
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  return _ReportCard(report: report);
+                },
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Các báo cáo của bạn sẽ hiển thị ở đây',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-      )
-          : ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: reports.length,
-        itemBuilder: (context, index) {
-          final report = reports[index];
-          return _ReportCard(report: report);
-        },
-      ),
     );
   }
 }
@@ -125,35 +128,31 @@ class _ReportCard extends StatelessWidget {
                 ),
                 Text(
                   _formatDate(report.createdAt),
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Text(
               report.diseaseType,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               report.description,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.grey.shade700,
-              ),
+              style: TextStyle(color: Colors.grey.shade700),
             ),
             const SizedBox(height: 12),
             if (report.address != null)
               Row(
                 children: [
-                  Icon(Icons.location_on, size: 14, color: Colors.grey.shade500),
+                  Icon(
+                    Icons.location_on,
+                    size: 14,
+                    color: Colors.grey.shade500,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -184,12 +183,24 @@ class _ReportCard extends StatelessWidget {
 
   Color _getStatusColor() {
     switch (report.status) {
+      case ReportStatus.submitted:
+        return Colors.grey;
+      case ReportStatus.autoVerified:
+        return Colors.cyan;
+      case ReportStatus.underReview:
+        return Colors.blue;
+      case ReportStatus.fieldVerification:
+        return Colors.orange;
+      case ReportStatus.confirmed:
+        return Colors.green;
+      case ReportStatus.rejected:
+        return Colors.red;
+      case ReportStatus.closed:
+        return Colors.blueGrey;
       case ReportStatus.verified:
         return Colors.green;
       case ReportStatus.pending:
         return Colors.orange;
-      case ReportStatus.rejected:
-        return Colors.red;
       case ReportStatus.resolved:
         return Colors.blue;
     }

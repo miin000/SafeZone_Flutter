@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../auth/verification_screen.dart';
 
-/// A dialog that prompts user to verify phone before creating reports
+/// A dialog that prompts user to verify email and phone before creating reports
 class VerificationRequiredDialog extends StatelessWidget {
   final VoidCallback? onVerificationComplete;
 
@@ -12,15 +12,15 @@ class VerificationRequiredDialog extends StatelessWidget {
   static Future<bool> show(BuildContext context) async {
     final authProvider = context.read<AuthProvider>();
 
-    // Only phone verification is required for reporting
-    if (authProvider.isPhoneVerified) {
+    // Both email and phone must be verified for reporting
+    if (authProvider.isEmailVerified && authProvider.isPhoneVerified) {
       return true;
     }
 
     // Fetch latest verification status
     await authProvider.fetchVerificationStatus();
 
-    if (authProvider.isPhoneVerified) {
+    if (authProvider.isEmailVerified && authProvider.isPhoneVerified) {
       return true;
     }
 
@@ -40,8 +40,10 @@ class VerificationRequiredDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
+        final isEmailVerified = authProvider.isEmailVerified;
         final isPhoneVerified = authProvider.isPhoneVerified;
         final user = authProvider.user;
+        final isReady = isEmailVerified && isPhoneVerified;
 
         return AlertDialog(
           shape: RoundedRectangleBorder(
@@ -59,17 +61,57 @@ class VerificationRequiredDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Để báo cáo ca bệnh, bạn cần xác thực số điện thoại để đảm bảo tính xác thực của thông tin.',
+                'Để gửi báo cáo, bạn cần xác thực email và số điện thoại bằng mã OTP.',
                 style: TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 20),
+              _VerificationItem(
+                icon: Icons.email_outlined,
+                title: 'Email',
+                subtitle: user?.email?.isNotEmpty == true
+                    ? user!.email!
+                    : 'Chưa cập nhật email',
+                isVerified: isEmailVerified,
+                hasValue: user?.email?.isNotEmpty == true,
+                onVerify: () async {
+                  if (user?.email?.isNotEmpty != true) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Vui lòng cập nhật email trong hồ sơ'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final result = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                      builder: (_) => const VerificationScreen(
+                        type: VerificationType.email,
+                        canSkip: false,
+                      ),
+                    ),
+                  );
+
+                  if (result == true && context.mounted) {
+                    await authProvider.fetchVerificationStatus();
+                    await authProvider.fetchProfile();
+                    if (authProvider.isEmailVerified &&
+                        authProvider.isPhoneVerified &&
+                        context.mounted) {
+                      Navigator.of(context).pop(true);
+                    }
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
               // Phone verification status
               _VerificationItem(
                 icon: Icons.phone_outlined,
                 title: 'Số điện thoại',
                 subtitle: user?.phone ?? 'Chưa cập nhật',
                 isVerified: isPhoneVerified,
-                hasPhone: user != null && user.phone.isNotEmpty,
+                hasValue: user != null && user.phone.isNotEmpty,
                 onVerify: () async {
                   if (user == null || user.phone.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -91,15 +133,26 @@ class VerificationRequiredDialog extends StatelessWidget {
                     ),
                   );
                   if (result == true && context.mounted) {
-                    // Refresh verification status
                     await authProvider.fetchVerificationStatus();
-                    // Phone verified - allow reporting
-                    if (authProvider.isPhoneVerified && context.mounted) {
+                    if (authProvider.isEmailVerified &&
+                        authProvider.isPhoneVerified &&
+                        context.mounted) {
                       Navigator.of(context).pop(true);
                     }
                   }
                 },
               ),
+              if (!isReady)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    'Bạn cần hoàn tất cả 2 bước xác minh để tiếp tục.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange.shade800,
+                    ),
+                  ),
+                ),
             ],
           ),
           actions: [
@@ -119,7 +172,7 @@ class _VerificationItem extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool isVerified;
-  final bool hasPhone;
+  final bool hasValue;
   final VoidCallback onVerify;
 
   const _VerificationItem({
@@ -127,7 +180,7 @@ class _VerificationItem extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.isVerified,
-    this.hasPhone = true,
+    this.hasValue = true,
     required this.onVerify,
   });
 
@@ -178,7 +231,7 @@ class _VerificationItem extends StatelessWidget {
                 minimumSize: Size.zero,
               ),
               child: Text(
-                hasPhone ? 'Xác thực' : 'Cập nhật',
+                hasValue ? 'Xác thực' : 'Cập nhật',
                 style: const TextStyle(fontSize: 13),
               ),
             ),

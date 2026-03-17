@@ -4,10 +4,7 @@ import 'package:mobile_flutter/data/models/post_model.dart';
 class PostCard extends StatelessWidget {
   final PostModel post;
 
-  const PostCard({
-    super.key,
-    required this.post,
-  });
+  const PostCard({super.key, required this.post});
 
   @override
   Widget build(BuildContext context) {
@@ -35,10 +32,8 @@ class PostCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        post.author?.name ?? 'Ẩn danh',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        post.author?.name ?? post.authorName ?? 'Ẩn danh',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       Row(
                         children: [
@@ -143,7 +138,10 @@ class PostCard extends StatelessWidget {
                   children: [
                     if (post.diseaseType != null) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.blue[100],
                           borderRadius: BorderRadius.circular(16),
@@ -157,7 +155,10 @@ class PostCard extends StatelessWidget {
                     ],
                     if (post.location != null)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.green[100],
                           borderRadius: BorderRadius.circular(16),
@@ -177,11 +178,7 @@ class PostCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(
-                      Icons.thumb_up,
-                      size: 16,
-                      color: Colors.green,
-                    ),
+                    Icon(Icons.thumb_up, size: 16, color: Colors.green),
                     const SizedBox(width: 4),
                     Text(
                       '${post.helpfulCount}',
@@ -191,11 +188,7 @@ class PostCard extends StatelessWidget {
                 ),
                 Row(
                   children: [
-                    Icon(
-                      Icons.thumb_down,
-                      size: 16,
-                      color: Colors.red,
-                    ),
+                    Icon(Icons.thumb_down, size: 16, color: Colors.red),
                     const SizedBox(width: 4),
                     Text(
                       '${post.notHelpfulCount}',

@@ -30,6 +30,17 @@ class NotificationModel {
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    final createdAtRaw = json['createdAt'] as String?;
+    DateTime createdAt = DateTime.now();
+
+    if (createdAtRaw != null && createdAtRaw.isNotEmpty) {
+      final hasTimezone =
+          createdAtRaw.endsWith('Z') ||
+          RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(createdAtRaw);
+      final normalized = hasTimezone ? createdAtRaw : '${createdAtRaw}Z';
+      createdAt = DateTime.parse(normalized).toLocal();
+    }
+
     return NotificationModel(
       id: json['id'].toString(),
       title: json['title'] as String? ?? '',
@@ -37,9 +48,7 @@ class NotificationModel {
       message: (json['body'] ?? json['message']) as String? ?? '',
       type: _parseType(json['type'] as String? ?? 'system'),
       isRead: json['isRead'] as bool? ?? false,
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt'] as String) 
-          : DateTime.now(),
+      createdAt: createdAt,
       metadata: json['data'] as Map<String, dynamic>?,
     );
   }
@@ -107,8 +116,11 @@ class NotificationListResponse {
       );
     } else if (json is Map<String, dynamic>) {
       // API returns object with data, total, unreadCount
-      final list = (json['data'] as List?)
-              ?.map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
+      final list =
+          (json['data'] as List?)
+              ?.map(
+                (e) => NotificationModel.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [];
       return NotificationListResponse(
@@ -117,7 +129,7 @@ class NotificationListResponse {
         unreadCount: json['unreadCount'] as int? ?? 0,
       );
     }
-    
+
     // Fallback
     return NotificationListResponse(
       notifications: [],

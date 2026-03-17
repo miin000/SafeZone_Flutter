@@ -5,7 +5,20 @@ import '../models/verification_model.dart';
 
 abstract class AuthRepository {
   Future<AuthResponse> login(String phone, String password);
-  Future<AuthResponse> register(String phone, String password, String name, String? email);
+  Future<AuthResponse> register({
+    required String phone,
+    required String password,
+    required String name,
+    String? email,
+    String? gender,
+    String? dateOfBirth,
+    String? citizenId,
+    String? fullAddress,
+    String? province,
+    String? district,
+    String? ward,
+    bool consentGiven = false,
+  });
   Future<UserModel> getProfile();
   Future<UserModel> updateProfile(Map<String, dynamic> data);
   Future<void> logout();
@@ -23,7 +36,7 @@ class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDatasource _remoteDatasource;
 
   AuthRepositoryImpl({AuthRemoteDatasource? remoteDatasource})
-      : _remoteDatasource = remoteDatasource ?? AuthRemoteDatasourceImpl();
+    : _remoteDatasource = remoteDatasource ?? AuthRemoteDatasourceImpl();
 
   @override
   Future<AuthResponse> login(String phone, String password) {
@@ -31,13 +44,34 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<AuthResponse> register(
-    String phone,
-    String password,
-    String name,
+  Future<AuthResponse> register({
+    required String phone,
+    required String password,
+    required String name,
     String? email,
-  ) {
-    return _remoteDatasource.register(phone, password, name, email);
+    String? gender,
+    String? dateOfBirth,
+    String? citizenId,
+    String? fullAddress,
+    String? province,
+    String? district,
+    String? ward,
+    bool consentGiven = false,
+  }) {
+    return _remoteDatasource.register(
+      phone: phone,
+      password: password,
+      name: name,
+      email: email,
+      gender: gender,
+      dateOfBirth: dateOfBirth,
+      citizenId: citizenId,
+      fullAddress: fullAddress,
+      province: province,
+      district: district,
+      ward: ward,
+      consentGiven: consentGiven,
+    );
   }
 
   @override
