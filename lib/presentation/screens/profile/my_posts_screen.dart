@@ -1,20 +1,81 @@
 import 'package:flutter/material.dart';
-// XÓA: import 'package:mobile_flutter/data/mock_data/mock_posts.dart';
 import 'package:provider/provider.dart';
+import 'package:mobile_flutter/data/models/post_model.dart';
 import 'package:mobile_flutter/presentation/providers/post_provider.dart';
 
-class MyPostsScreen extends StatelessWidget {
+class MyPostsScreen extends StatefulWidget {
   const MyPostsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final postProvider = context.watch<PostProvider>();
-    final myPosts = postProvider.posts; // Lấy từ provider thay vì MockPosts
+  State<MyPostsScreen> createState() => _MyPostsScreenState();
+}
 
+class _MyPostsScreenState extends State<MyPostsScreen> {
+  late Future<List<PostModel>> _myPostsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _myPostsFuture = context.read<PostProvider>().getMyPosts();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _myPostsFuture = context.read<PostProvider>().getMyPosts();
+    });
+    await _myPostsFuture;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bài đăng của tôi')),
-      body: myPosts.isEmpty
-          ? Center(
+      appBar: AppBar(
+        title: const Text('Bài đăng của tôi'),
+        actions: [
+          IconButton(
+            onPressed: _reload,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Làm mới',
+          ),
+        ],
+      ),
+      body: FutureBuilder<List<PostModel>>(
+        future: _myPostsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Không thể tải bài đăng của bạn',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      snapshot.error.toString(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(onPressed: _reload, child: const Text('Thử lại')),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final myPosts = snapshot.data ?? const <PostModel>[];
+          if (myPosts.isEmpty) {
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -33,18 +94,14 @@ class MyPostsScreen extends StatelessWidget {
                     'Các bài viết bạn chia sẻ sẽ hiển thị ở đây',
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () {
-                      // TODO: Navigate to create post
-                      Navigator.pushNamed(context, '/create-post');
-                    },
-                    child: const Text('Tạo bài đăng mới'),
-                  ),
                 ],
               ),
-            )
-          : ListView.builder(
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: myPosts.length,
               itemBuilder: (context, index) {
@@ -87,11 +144,10 @@ class MyPostsScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        // Author name and status
                         Row(
                           children: [
                             Text(
-                              post.author?.name ?? 'Bạn',
+                              post.authorName,
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
@@ -172,6 +228,9 @@ class MyPostsScreen extends StatelessWidget {
                 );
               },
             ),
+          );
+        },
+      ),
     );
   }
 }

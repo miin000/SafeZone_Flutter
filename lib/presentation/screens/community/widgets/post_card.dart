@@ -1,13 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mobile_flutter/data/models/post_model.dart';
+import 'package:mobile_flutter/presentation/providers/post_provider.dart';
 
-class PostCard extends StatelessWidget {
+class PostCard extends StatefulWidget {
   final PostModel post;
 
   const PostCard({super.key, required this.post});
 
   @override
+  State<PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<PostCard> {
+  bool _reacting = false;
+
+  Future<void> _react(String type) async {
+    if (_reacting) return;
+    setState(() => _reacting = true);
+    try {
+      await context.read<PostProvider>().reactToPost(widget.post.id, type);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể tương tác bài viết: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _reacting = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final post = widget.post;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -174,27 +205,27 @@ class PostCard extends StatelessWidget {
 
             // Reactions
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.thumb_up, size: 16, color: Colors.green),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${post.helpfulCount}',
-                      style: const TextStyle(fontSize: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _reacting ? null : () => _react('helpful'),
+                    icon: const Icon(Icons.thumb_up_alt_outlined, size: 16),
+                    label: Text('${post.helpfulCount} Hữu ích'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green.shade700,
                     ),
-                  ],
+                  ),
                 ),
-                Row(
-                  children: [
-                    Icon(Icons.thumb_down, size: 16, color: Colors.red),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${post.notHelpfulCount}',
-                      style: const TextStyle(fontSize: 12),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _reacting ? null : () => _react('not_helpful'),
+                    icon: const Icon(Icons.thumb_down_alt_outlined, size: 16),
+                    label: Text('${post.notHelpfulCount} Không hữu ích'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red.shade700,
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),

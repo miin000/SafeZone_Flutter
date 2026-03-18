@@ -90,11 +90,13 @@ class PostRemoteDatasourceImpl implements PostRemoteDatasource {
   @override
   Future<PostModel> reactToPost(String postId, String reaction) async {
     try {
-      final response = await _apiClient.post(
+      await _apiClient.post(
         '${ApiConstants.posts}/$postId/react',
         data: {'type': reaction},
       );
-      return PostModel.fromJson(response.data);
+
+      final refreshed = await _apiClient.get('${ApiConstants.posts}/$postId');
+      return PostModel.fromJson(refreshed.data);
     } on DioException catch (e) {
       throw _handleError(e);
     }

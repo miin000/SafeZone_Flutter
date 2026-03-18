@@ -17,7 +17,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     super.initState();
     // Load posts when screen initializes
     Future.microtask(() {
-      context.read<PostProvider>().loadMorePosts();
+      context.read<PostProvider>().initialize();
     });
   }
 

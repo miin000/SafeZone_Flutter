@@ -6,6 +6,7 @@ import 'package:mobile_flutter/core/constants/app_colors.dart';
 import 'package:mobile_flutter/domain/entities/epidemic_zone.dart';
 import 'package:mobile_flutter/presentation/providers/zone_provider.dart';
 import 'package:mobile_flutter/presentation/providers/location_provider.dart';
+import 'zone_list_screen.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -17,7 +18,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   bool _showLegend = true;
-  DiseaseType? _selectedDiseaseFilter;
+  String? _selectedDiseaseFilter;
 
   @override
   void initState() {
@@ -100,7 +101,9 @@ class _MapScreenState extends State<MapScreen> {
     if (_selectedDiseaseFilter == null) {
       return zoneProvider.activeZones;
     }
-    return zoneProvider.getZonesByDisease(_selectedDiseaseFilter!);
+    return zoneProvider.activeZones
+        .where((z) => z.diseaseName == _selectedDiseaseFilter)
+        .toList();
   }
 
   @override
@@ -110,6 +113,12 @@ class _MapScreenState extends State<MapScreen> {
         builder: (context, locationProvider, zoneProvider, child) {
           final userLocation = locationProvider.currentLatLng;
           final zones = _getFilteredZones(zoneProvider);
+          final diseaseFilters = zoneProvider.activeZones
+              .map((z) => z.diseaseName)
+              .where((name) => name.trim().isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
 
           return Stack(
             children: [
@@ -215,33 +224,51 @@ class _MapScreenState extends State<MapScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Search bar
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Tìm kiếm địa điểm...',
-                            prefixIcon: const Icon(Icons.search),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.filter_list),
-                              onPressed: () => _showFilterDialog(),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: TextField(
+                                decoration: InputDecoration(
+                                  hintText: 'Tìm kiếm địa điểm...',
+                                  prefixIcon: const Icon(Icons.search),
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: const Icon(Icons.filter_list),
+                                    onPressed: () => _showFilterDialog(),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const ZoneListScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.list_alt),
+                            label: const Text('DS vùng dịch'),
+                          ),
+                        ],
                       ),
 
                       const SizedBox(height: 12),
@@ -258,14 +285,17 @@ class _MapScreenState extends State<MapScreen> {
                                 setState(() => _selectedDiseaseFilter = null);
                               },
                             ),
-                            ...DiseaseType.values.map((type) {
+                            ...diseaseFilters.map((diseaseName) {
+                              final sampleZone = zoneProvider.activeZones.firstWhere(
+                                (z) => z.diseaseName == diseaseName,
+                              );
                               return _FilterChip(
-                                label: type.displayName,
-                                isSelected: _selectedDiseaseFilter == type,
+                                label: diseaseName,
+                                isSelected: _selectedDiseaseFilter == diseaseName,
                                 onSelected: () {
-                                  setState(() => _selectedDiseaseFilter = type);
+                                  setState(() => _selectedDiseaseFilter = diseaseName);
                                 },
-                                icon: _getDiseaseIcon(type),
+                                icon: _getDiseaseIcon(sampleZone.diseaseType),
                               );
                             }),
                           ],

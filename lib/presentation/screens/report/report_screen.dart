@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../data/models/report_model.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../providers/report_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/notification_provider.dart';
-import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
 import 'verification_required_dialog.dart';
-import '../auth/verification_screen.dart';
 import 'detailed_case_report_screen.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -45,17 +45,8 @@ class _ReportScreenState extends State<ReportScreen> {
   LatLng? _selectedCaseLocation; // Case/incident location from map
   LatLng? _reporterLocation; // Reporter's current location
 
-  // Disease types
-  final List<String> _diseaseTypes = [
-    'Sốt xuất huyết',
-    'Tay chân miệng',
-    'COVID-19',
-    'Cúm mùa',
-    'Sởi',
-    'Thủy đậu',
-    'Tiêu chảy cấp',
-    'Khác',
-  ];
+  // Disease types from backend disease management
+  List<String> _diseaseTypes = ['Dengue'];
 
   // Common symptoms
   final List<String> _availableSymptoms = [
@@ -103,7 +94,30 @@ class _ReportScreenState extends State<ReportScreen> {
     // Get reporter's current location when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _getReporterLocation();
+      _loadDiseaseTypes();
     });
+  }
+
+  Future<void> _loadDiseaseTypes() async {
+    try {
+      final response = await ApiClient.instance.get(ApiConstants.diseases);
+      final rows = response.data;
+      if (rows is! List) return;
+
+      final names = rows
+          .map((item) => (item is Map ? item['name']?.toString().trim() : null))
+          .whereType<String>()
+          .where((name) => name.isNotEmpty)
+          .toList();
+
+      if (names.isEmpty || !mounted) return;
+      setState(() {
+        _diseaseTypes = names;
+        _selectedDiseaseType ??= names.first;
+      });
+    } catch (_) {
+      // Keep fallback list if API fails
+    }
   }
 
   Future<void> _getReporterLocation() async {
@@ -216,30 +230,6 @@ class _ReportScreenState extends State<ReportScreen> {
     final isVerified = await VerificationRequiredDialog.show(context);
     if (!isVerified) {
       return; // User chose not to verify or cancelled
-    }
-
-    final authProvider = context.read<AuthProvider>();
-    final hasEmail = authProvider.user?.email?.isNotEmpty == true;
-    if (!hasEmail) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng cập nhật email trước khi gửi báo cáo'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final otpConfirmed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => const VerificationScreen(
-          type: VerificationType.email,
-          canSkip: false,
-        ),
-      ),
-    );
-    if (otpConfirmed != true) {
-      return;
     }
 
     final request = CreateReportRequest(

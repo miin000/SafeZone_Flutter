@@ -70,42 +70,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
-                _SettingsItem(
-                  icon: Icons.format_size,
-                  title: 'Cỡ chữ',
-                  subtitle: 'Điều chỉnh kích thước văn bản',
-                  trailing: DropdownButton<FontSize>(
-                    value: settings.fontSize,
-                    onChanged: (value) {
-                      if (value != null) {
-                        settingsProvider.updateFontSize(value);
-                      }
-                    },
-                    items: const [
-                      DropdownMenuItem(
-                        value: FontSize.small,
-                        child: Text('Nhỏ'),
-                      ),
-                      DropdownMenuItem(
-                        value: FontSize.medium,
-                        child: Text('Trung bình'),
-                      ),
-                      DropdownMenuItem(
-                        value: FontSize.large,
-                        child: Text('Lớn'),
-                      ),
-                    ],
-                  ),
-                ),
-                _SettingsItem(
-                  icon: Icons.language,
-                  title: 'Ngôn ngữ',
-                  subtitle: 'Tiếng Việt',
-                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                  onTap: () {
-                    // TODO: Language selection
-                  },
-                ),
               ],
             ),
           ],

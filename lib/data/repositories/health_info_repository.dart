@@ -67,11 +67,14 @@ class HealthInfoRepositoryImpl implements HealthInfoRepository {
       return HealthInfoResponse.fromJson({'data': payload});
     }
     if (payload is Map<String, dynamic>) {
+      if (payload['items'] is List) {
+        return HealthInfoResponse.fromJson({
+          'data': payload['items'],
+          'meta': payload['meta'],
+        });
+      }
       if (payload['data'] is List || payload['data'] == null) {
         return HealthInfoResponse.fromJson(payload);
-      }
-      if (payload['items'] is List) {
-        return HealthInfoResponse.fromJson({'data': payload['items'], 'meta': payload['meta']});
       }
     }
     throw Exception('Invalid health info response format');

@@ -60,6 +60,9 @@ class ApiConstants {
   static const String posts = '/posts';
   static const String myPosts = '/posts/my-posts';
 
+  // Disease endpoints
+  static const String diseases = '/diseases';
+
   // Notification endpoints
   static const String notifications = '/notifications';
   static const String notificationsUnread = '/notifications/unread';

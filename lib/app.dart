@@ -21,6 +21,7 @@ import 'package:mobile_flutter/presentation/providers/location_provider.dart';
 import 'package:mobile_flutter/presentation/providers/notification_provider.dart';
 import 'package:mobile_flutter/presentation/providers/statistics_provider.dart';
 import 'package:mobile_flutter/presentation/providers/health_info_provider.dart';
+import 'package:mobile_flutter/data/models/settings_model.dart';
 
 // Widgets
 import 'package:mobile_flutter/presentation/widgets/zone_warning_banner.dart';
@@ -32,6 +33,17 @@ import 'package:mobile_flutter/data/repositories/post_repository_impl.dart';
 class SafeZoneApp extends StatelessWidget {
   const SafeZoneApp({super.key});
 
+  ThemeMode _themeMode(AppTheme theme) {
+    switch (theme) {
+      case AppTheme.dark:
+        return ThemeMode.dark;
+      case AppTheme.system:
+        return ThemeMode.system;
+      case AppTheme.light:
+        return ThemeMode.light;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -41,7 +53,13 @@ class SafeZoneApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ZoneProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = SettingsProvider();
+            provider.loadSettings();
+            return provider;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => StatisticsProvider()),
         ChangeNotifierProvider(create: (_) => HealthInfoProvider()),
 
@@ -57,14 +75,29 @@ class SafeZoneApp extends StatelessWidget {
           },
         ),
       ],
-      child: MaterialApp(
-        title: 'SafeZone',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-          useMaterial3: true,
-        ),
-        home: const AuthWrapper(),
+      child: Consumer<SettingsProvider>(
+        builder: (context, settingsProvider, _) {
+          final baseTheme = ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+            useMaterial3: true,
+          );
+          final darkTheme = ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.blue,
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          );
+
+          return MaterialApp(
+            title: 'SafeZone',
+            debugShowCheckedModeBanner: false,
+            themeMode: _themeMode(settingsProvider.theme),
+            theme: baseTheme,
+            darkTheme: darkTheme,
+            home: const AuthWrapper(),
+          );
+        },
       ),
     );
   }

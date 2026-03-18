@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../providers/zone_provider.dart';
 import '../providers/location_provider.dart';
 import '../../domain/entities/epidemic_zone.dart';
+import '../screens/map/zone_list_screen.dart';
 
 /// A persistent warning banner displayed when user is inside an epidemic zone
 class ZoneWarningBanner extends StatefulWidget {
@@ -222,6 +223,25 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
                             ),
                           const SizedBox(height: 12),
                           _buildSafetyTips(highestRiskZone),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const ZoneListScreen(),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                              ),
+                              icon: const Icon(Icons.open_in_new, size: 16),
+                              label: const Text('Xem chi tiết vùng dịch'),
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -276,7 +296,7 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
                   ),
                 ),
                 Text(
-                  '${zone.diseaseType.displayName} • ${zone.activeCases} ca đang điều trị',
+                  '${zone.diseaseName} • ${zone.activeCases} ca đang điều trị',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.85),
                     fontSize: 12,

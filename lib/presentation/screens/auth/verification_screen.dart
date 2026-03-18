@@ -25,11 +25,7 @@ class VerificationScreen extends StatefulWidget {
 }
 
 class _VerificationScreenState extends State<VerificationScreen> {
-  final List<TextEditingController> _otpControllers = List.generate(
-    6,
-    (_) => TextEditingController(),
-  );
-  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
+  final TextEditingController _otpController = TextEditingController();
 
   bool _isOtpSent = false;
   bool _isLoading = false;
@@ -47,12 +43,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   @override
   void dispose() {
-    for (var controller in _otpControllers) {
-      controller.dispose();
-    }
-    for (var node in _focusNodes) {
-      node.dispose();
-    }
+    _otpController.dispose();
     _countdownTimer?.cancel();
     super.dispose();
   }
@@ -120,47 +111,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
     });
   }
 
-  String get _otpCode => _otpControllers.map((c) => c.text).join();
-
-  void _setOtpAt(int index, String digit) {
-    _otpControllers[index].value = TextEditingValue(
-      text: digit,
-      selection: TextSelection.collapsed(offset: digit.length),
-    );
-  }
-
-  void _handleOtpInput(int index, String rawValue) {
-    final digits = rawValue.replaceAll(RegExp(r'\D'), '');
-
-    if (digits.isEmpty) {
-      _setOtpAt(index, '');
-      if (index > 0) {
-        _focusNodes[index - 1].requestFocus();
-      }
-      return;
-    }
-
-    // Support paste or accidental multi-digit input by distributing digits.
-    var cursor = index;
-    for (final ch in digits.split('')) {
-      if (cursor > 5) break;
-      _setOtpAt(cursor, ch);
-      cursor++;
-    }
-
-    if (cursor <= 5) {
-      _focusNodes[cursor].requestFocus();
-    } else {
-      _focusNodes[5].unfocus();
-    }
-
-    if (_otpCode.length == 6 && !_isLoading) {
-      _verifyOtp();
-    }
-  }
-
   Future<void> _verifyOtp() async {
-    final otp = _otpCode;
+    final otp = _otpController.text.trim();
     if (otp.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -201,11 +153,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        // Clear OTP fields on error
-        for (var controller in _otpControllers) {
-          controller.clear();
-        }
-        _focusNodes[0].requestFocus();
+        _otpController.clear();
       }
     }
   }
@@ -265,53 +213,51 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               ),
               const SizedBox(height: 40),
-              // OTP Input Fields
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 45,
-                    child: TextField(
-                      controller: _otpControllers[index],
-                      focusNode: _focusNodes[index],
-                      textAlign: TextAlign.center,
-                      keyboardType: TextInputType.number,
-                      textInputAction: index == 5
-                          ? TextInputAction.done
-                          : TextInputAction.next,
-                      maxLength: 1,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Colors.blue.shade600,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      smartDashesType: SmartDashesType.disabled,
-                      smartQuotesType: SmartQuotesType.disabled,
-                      onTap: () {
-                        _otpControllers[index].selection = TextSelection(
-                          baseOffset: 0,
-                          extentOffset: _otpControllers[index].text.length,
-                        );
-                      },
-                      onChanged: (value) => _handleOtpInput(index, value),
+              // OTP input
+              TextField(
+                controller: _otpController,
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                maxLength: 6,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 8,
+                ),
+                decoration: InputDecoration(
+                  counterText: '',
+                  hintText: '000000',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Colors.blue.shade600,
+                      width: 2,
                     ),
-                  );
-                }),
+                  ),
+                ),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                autocorrect: false,
+                enableSuggestions: false,
+                smartDashesType: SmartDashesType.disabled,
+                smartQuotesType: SmartQuotesType.disabled,
+                onChanged: (value) {
+                  final digits = value.replaceAll(RegExp(r'\D'), '');
+                  if (digits != value) {
+                    _otpController.value = TextEditingValue(
+                      text: digits,
+                      selection: TextSelection.collapsed(offset: digits.length),
+                    );
+                  }
+
+                  if (digits.length == 6 && !_isLoading) {
+                    _verifyOtp();
+                  }
+                },
+                onSubmitted: (_) => _verifyOtp(),
               ),
               const SizedBox(height: 32),
               // Verify Button

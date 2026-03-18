@@ -47,6 +47,7 @@ class StatisticsProvider extends ChangeNotifier {
     int days = 30,
     String? regionCode,
   }) async {
+    _setError(null);
     try {
       _timeline = await _repository.fetchTimeline(
         diseaseType: diseaseType,
@@ -54,7 +55,10 @@ class StatisticsProvider extends ChangeNotifier {
         regionCode: regionCode,
       );
     } catch (e) {
+      _setError(e.toString().replaceAll('Exception: ', ''));
       _timeline = null;
+    } finally {
+      notifyListeners();
     }
   }
 }

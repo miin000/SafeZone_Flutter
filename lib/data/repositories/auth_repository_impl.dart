@@ -4,7 +4,7 @@ import '../models/user_model.dart';
 import '../models/verification_model.dart';
 
 abstract class AuthRepository {
-  Future<AuthResponse> login(String phone, String password);
+  Future<AuthResponse> login(String identifier, String password);
   Future<AuthResponse> register({
     required String phone,
     required String password,
@@ -39,8 +39,8 @@ class AuthRepositoryImpl implements AuthRepository {
     : _remoteDatasource = remoteDatasource ?? AuthRemoteDatasourceImpl();
 
   @override
-  Future<AuthResponse> login(String phone, String password) {
-    return _remoteDatasource.login(phone, password);
+  Future<AuthResponse> login(String identifier, String password) {
+    return _remoteDatasource.login(identifier, password);
   }
 
   @override

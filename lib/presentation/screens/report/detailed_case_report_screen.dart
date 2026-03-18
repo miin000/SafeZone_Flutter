@@ -3,14 +3,14 @@ import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
 import '../../../data/models/report_model.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../providers/report_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/notification_provider.dart';
-import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
 import 'verification_required_dialog.dart';
-import '../auth/verification_screen.dart';
 
 /// Screen for detailed case report with full patient information
 class DetailedCaseReportScreen extends StatefulWidget {
@@ -56,21 +56,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   LatLng? _selectedCaseLocation;
   LatLng? _reporterLocation;
 
-  // Disease types
-  final List<String> _diseaseTypes = [
-    'Sốt xuất huyết',
-    'Tay chân miệng',
-    'COVID-19',
-    'Cúm mùa',
-    'Sởi',
-    'Thủy đậu',
-    'Tiêu chảy cấp',
-    'Tả',
-    'Viêm gan',
-    'Lao',
-    'HIV/AIDS',
-    'Khác',
-  ];
+  List<String> _diseaseTypes = ['Dengue'];
 
   // Common symptoms
   final List<String> _availableSymptoms = [
@@ -112,7 +98,30 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _getReporterLocation();
+      _loadDiseaseTypes();
     });
+  }
+
+  Future<void> _loadDiseaseTypes() async {
+    try {
+      final response = await ApiClient.instance.get(ApiConstants.diseases);
+      final rows = response.data;
+      if (rows is! List) return;
+
+      final names = rows
+          .map((item) => (item is Map ? item['name']?.toString().trim() : null))
+          .whereType<String>()
+          .where((name) => name.isNotEmpty)
+          .toList();
+
+      if (names.isEmpty || !mounted) return;
+      setState(() {
+        _diseaseTypes = names;
+        _selectedDiseaseType ??= names.first;
+      });
+    } catch (_) {
+      // Keep fallback list if API fails
+    }
   }
 
   @override
@@ -234,28 +243,6 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
     // Check verification status
     final isVerified = await VerificationRequiredDialog.show(context);
     if (!isVerified) return;
-
-    final authProvider = context.read<AuthProvider>();
-    final hasEmail = authProvider.user?.email?.isNotEmpty == true;
-    if (!hasEmail) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng cập nhật email trước khi gửi báo cáo'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final otpConfirmed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => const VerificationScreen(
-          type: VerificationType.email,
-          canSkip: false,
-        ),
-      ),
-    );
-    if (otpConfirmed != true) return;
 
     // Build patient info
     final patientInfo = PatientInfo(

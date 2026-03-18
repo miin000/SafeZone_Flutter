@@ -7,7 +7,7 @@ import '../../models/user_model.dart';
 import '../../models/verification_model.dart';
 
 abstract class AuthRemoteDatasource {
-  Future<AuthResponse> login(String phone, String password);
+  Future<AuthResponse> login(String identifier, String password);
   Future<AuthResponse> register({
     required String phone,
     required String password,
@@ -42,12 +42,16 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
       : _apiClient = apiClient ?? ApiClient.instance;
 
   @override
-  Future<AuthResponse> login(String phone, String password) async {
+  Future<AuthResponse> login(String identifier, String password) async {
     try {
+      final normalizedIdentifier = identifier.trim();
+      final isEmail = normalizedIdentifier.contains('@');
+
       final response = await _apiClient.post(
         ApiConstants.login,
         data: {
-          'phone': phone,
+          if (isEmail) 'email': normalizedIdentifier,
+          if (!isEmail) 'phone': normalizedIdentifier,
           'password': password,
           'source': 'mobile',
         },

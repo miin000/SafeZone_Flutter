@@ -59,6 +59,35 @@ class PostProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _mergePosts(List<PostModel> incoming, {bool prepend = false}) {
+    if (incoming.isEmpty) return;
+
+    final existingById = {for (final post in _posts) post.id: post};
+    for (final post in incoming) {
+      existingById[post.id] = post;
+    }
+
+    final idsInOrder = <String>[];
+    if (prepend) {
+      for (final post in incoming) {
+        if (!idsInOrder.contains(post.id)) idsInOrder.add(post.id);
+      }
+    }
+    for (final post in _posts) {
+      if (!idsInOrder.contains(post.id)) idsInOrder.add(post.id);
+    }
+    if (!prepend) {
+      for (final post in incoming) {
+        if (!idsInOrder.contains(post.id)) idsInOrder.add(post.id);
+      }
+    }
+
+    _posts = idsInOrder
+        .map((id) => existingById[id])
+        .whereType<PostModel>()
+        .toList();
+  }
+
   // ========== THÊM CÁC METHOD BỊ THIẾU ==========
 
   // Method 1: _loadFromLocal
@@ -119,8 +148,8 @@ class PostProvider extends ChangeNotifier {
       // Save to local storage
       await _localDatasource.savePosts(newPosts);
 
-      // Add to existing posts
-      _posts.addAll(newPosts);
+      // Add to existing posts without duplicates
+      _mergePosts(newPosts);
       _currentPage++;
 
       _setLoading(false);
@@ -150,7 +179,7 @@ class PostProvider extends ChangeNotifier {
 
       if (newPosts.isNotEmpty) {
         await _localDatasource.savePosts(newPosts);
-        _posts.addAll(newPosts);
+        _mergePosts(newPosts);
       }
 
       _setLoading(false);
@@ -325,7 +354,7 @@ class PostProvider extends ChangeNotifier {
       }
 
       // Thêm vào danh sách hiện tại (không xóa cũ)
-      _posts.addAll(newPosts);
+      _mergePosts(newPosts);
       _currentPage++;
 
       // Lưu vào local storage
@@ -362,7 +391,7 @@ class PostProvider extends ChangeNotifier {
       print('Post created: ${postWithAuthor.id}');
 
       // Thêm vào danh sách
-      _posts.insert(0, postWithAuthor);
+      _mergePosts([postWithAuthor], prepend: true);
 
       // Lưu vào local storage
       await _localDatasource.savePosts([postWithAuthor]);

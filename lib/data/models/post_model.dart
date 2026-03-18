@@ -41,6 +41,8 @@ class PostModel extends Equatable {
   });
 
   factory PostModel.fromJson(Map<String, dynamic> json) {
+    final authorJson = json['author'] ?? json['user'];
+
     return PostModel(
       id: json['id'] ?? '',
       content: json['content'] ?? '',
@@ -51,23 +53,30 @@ class PostModel extends Equatable {
       status: _parseStatus(json['status']),
       location: json['location'],
       diseaseType: json['diseaseType'],
-      author: json['author'] != null
-          ? UserModel.fromJson(json['author'])
+        author: authorJson != null
+          ? UserModel.fromJson(authorJson)
           : null,
-      authorId: json['authorId'] ?? '',
+        authorId: json['authorId'] ?? json['userId'] ?? '',
       helpfulCount: json['helpfulCount'] ?? 0,
       notHelpfulCount: json['notHelpfulCount'] ?? 0,
       userReactions: json['userReactions'] != null
           ? Map<String, String>.from(json['userReactions'])
           : {},
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'])
+        createdAt: _parseDateTime(json['createdAt']),
+        updatedAt: json['updatedAt'] != null
+          ? _parseDateTime(json['updatedAt'])
           : null,
     );
   }
+
+      static DateTime _parseDateTime(dynamic raw) {
+      if (raw == null) return DateTime.now();
+      final value = raw.toString();
+      final hasTimezone =
+        value.endsWith('Z') || RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(value);
+      final normalized = hasTimezone ? value : '${value}Z';
+      return DateTime.parse(normalized).toLocal();
+      }
 
   Map<String, dynamic> toJson() {
     return {

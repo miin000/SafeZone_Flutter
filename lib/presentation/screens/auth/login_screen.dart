@@ -12,13 +12,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -28,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.login(
-      _phoneController.text.trim(),
+      _identifierController.text.trim(),
       _passwordController.text,
     );
 
@@ -87,22 +87,33 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 48),
 
-                        // Phone field
+                        // Phone/email field
                         TextFormField(
-                          controller: _phoneController,
+                          controller: _identifierController,
                           decoration: InputDecoration(
-                            labelText: 'Số điện thoại',
-                            prefixIcon: const Icon(Icons.phone_outlined),
+                            labelText: 'Số điện thoại hoặc Email',
+                            prefixIcon: const Icon(Icons.person_outline),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          keyboardType: TextInputType.phone,
+                          keyboardType: TextInputType.emailAddress,
                           validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Vui lòng nhập số điện thoại';
+                            final input = value?.trim() ?? '';
+                            if (input.isEmpty) {
+                              return 'Vui lòng nhập số điện thoại hoặc email';
                             }
-                            if (value.trim().length < 9) {
+
+                            if (input.contains('@')) {
+                              final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                              if (!emailRegex.hasMatch(input)) {
+                                return 'Email không hợp lệ';
+                              }
+                              return null;
+                            }
+
+                            final digits = input.replaceAll(RegExp(r'[^0-9+]'), '');
+                            if (digits.length < 9) {
                               return 'Số điện thoại không hợp lệ';
                             }
                             return null;

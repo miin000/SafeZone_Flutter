@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_flutter/data/models/settings_model.dart';
 
 class SettingsProvider extends ChangeNotifier {
+  static const String _storageKey = 'app_settings';
   AppSettings _settings = AppSettings.defaultSettings();
 
   AppSettings get settings => _settings;
@@ -194,8 +197,10 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   // Simulate saving to storage
-  void _saveSettings() {
-    // TODO: Save to SharedPreferences or other storage
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storageKey, jsonEncode(_settings.toJson()));
+
     if (kDebugMode) {
       print('Settings saved: ${_settings.toJson()}');
     }
@@ -203,9 +208,14 @@ class SettingsProvider extends ChangeNotifier {
 
   // Load settings from storage
   Future<void> loadSettings() async {
-    // TODO: Load from SharedPreferences
-    // Simulate loading
-    await Future.delayed(const Duration(milliseconds: 100));
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_storageKey);
+    if (raw != null && raw.isNotEmpty) {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        _settings = AppSettings.fromJson(decoded);
+      }
+    }
     notifyListeners();
   }
 }

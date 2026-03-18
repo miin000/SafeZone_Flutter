@@ -16,7 +16,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      context.read<HealthInfoProvider>().fetchFeatured();
+      context.read<HealthInfoProvider>().fetchHealthInfo();
     });
 
     _scrollController.addListener(_onScroll);
@@ -51,7 +51,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                 Text('Lỗi: ${provider.error}'),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () => provider.fetchFeatured(),
+                  onPressed: () => provider.fetchHealthInfo(),
                   child: const Text('Thử lại'),
                 ),
               ],

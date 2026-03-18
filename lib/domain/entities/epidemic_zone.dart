@@ -53,6 +53,7 @@ class EpidemicZone extends Equatable {
   final String id;
   final String name;
   final String? description;
+  final String diseaseName;
   final DiseaseType diseaseType;
   final ZoneRiskLevel riskLevel;
   final double latitude;
@@ -66,10 +67,11 @@ class EpidemicZone extends Equatable {
   final DateTime? updatedAt;
   final bool isActive;
 
-  const EpidemicZone({
+  EpidemicZone({
     required this.id,
     required this.name,
     this.description,
+    String? diseaseName,
     required this.diseaseType,
     required this.riskLevel,
     required this.latitude,
@@ -82,13 +84,14 @@ class EpidemicZone extends Equatable {
     required this.reportedAt,
     this.updatedAt,
     this.isActive = true,
-  });
+  }) : diseaseName = diseaseName ?? diseaseType.displayName;
 
   @override
   List<Object?> get props => [
         id,
         name,
         description,
+        diseaseName,
         diseaseType,
         riskLevel,
         latitude,
@@ -107,6 +110,7 @@ class EpidemicZone extends Equatable {
     String? id,
     String? name,
     String? description,
+    String? diseaseName,
     DiseaseType? diseaseType,
     ZoneRiskLevel? riskLevel,
     double? latitude,
@@ -124,6 +128,7 @@ class EpidemicZone extends Equatable {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
+      diseaseName: diseaseName ?? this.diseaseName,
       diseaseType: diseaseType ?? this.diseaseType,
       riskLevel: riskLevel ?? this.riskLevel,
       latitude: latitude ?? this.latitude,

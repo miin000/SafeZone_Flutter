@@ -2,10 +2,11 @@ import 'package:mobile_flutter/domain/entities/epidemic_zone.dart';
 
 /// Data model for EpidemicZone with JSON serialization
 class ZoneModel extends EpidemicZone {
-  const ZoneModel({
+  ZoneModel({
     required super.id,
     required super.name,
     super.description,
+    super.diseaseName,
     required super.diseaseType,
     required super.riskLevel,
     required super.latitude,
@@ -45,6 +46,7 @@ class ZoneModel extends EpidemicZone {
       id: json['id']?.toString() ?? '',
       name: json['name'] ?? '',
       description: json['description'],
+      diseaseName: (json['diseaseType'] ?? json['disease_type'] ?? '').toString(),
       diseaseType: _parseDiseaseType(json['diseaseType'] ?? json['disease_type']),
       riskLevel: _parseRiskLevel(json['riskLevel'] ?? json['risk_level']),
       latitude: lat,
@@ -68,6 +70,7 @@ class ZoneModel extends EpidemicZone {
       'id': id,
       'name': name,
       'description': description,
+      'diseaseName': diseaseName,
       'diseaseType': diseaseType.name,
       'riskLevel': riskLevel.name,
       'latitude': latitude,
@@ -89,6 +92,7 @@ class ZoneModel extends EpidemicZone {
       id: zone.id,
       name: zone.name,
       description: zone.description,
+      diseaseName: zone.diseaseName,
       diseaseType: zone.diseaseType,
       riskLevel: zone.riskLevel,
       latitude: zone.latitude,

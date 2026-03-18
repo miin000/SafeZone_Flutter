@@ -23,14 +23,37 @@ class HealthInfo {
   });
 
   factory HealthInfo.fromJson(Map<String, dynamic> json) {
+    final status = (json['status'] ?? '').toString().toLowerCase();
+    final imageUrls = json['imageUrls'];
+    String? resolvedImageUrl;
+    if (json['imageUrl'] is String && (json['imageUrl'] as String).isNotEmpty) {
+      resolvedImageUrl = json['imageUrl'] as String;
+    } else if (json['thumbnailUrl'] is String && (json['thumbnailUrl'] as String).isNotEmpty) {
+      resolvedImageUrl = json['thumbnailUrl'] as String;
+    } else if (imageUrls is List && imageUrls.isNotEmpty) {
+      final first = imageUrls.first;
+      if (first is String && first.isNotEmpty) {
+        resolvedImageUrl = first;
+      }
+    }
+
+    String? resolvedSource;
+    if (json['source'] is String && (json['source'] as String).isNotEmpty) {
+      resolvedSource = json['source'] as String;
+    } else if (json['sourceName'] is String && (json['sourceName'] as String).isNotEmpty) {
+      resolvedSource = json['sourceName'] as String;
+    } else if (json['sourceUrl'] is String && (json['sourceUrl'] as String).isNotEmpty) {
+      resolvedSource = json['sourceUrl'] as String;
+    }
+
     return HealthInfo(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
       content: json['content'] ?? '',
       category: json['category'],
-      imageUrl: json['imageUrl'],
-      source: json['source'],
-      published: json['published'] ?? false,
+      imageUrl: resolvedImageUrl,
+      source: resolvedSource,
+      published: json['published'] == true || status == 'published',
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'])

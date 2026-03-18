@@ -81,13 +81,28 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // Login
-  Future<bool> login(String phone, String password) async {
+  Future<bool> login(String identifier, String password) async {
     _setStatus(AuthStatus.loading);
     _setError(null);
 
     try {
-      final response = await _repository.login(phone, password);
-      _user = response.user;
+      final response = await _repository.login(identifier, password);
+      // Always refresh profile from server after receiving token
+      // to avoid stale/mismatched user info from login payload.
+      try {
+        _user = await _repository.getProfile();
+      } catch (_) {
+        _user = response.user;
+      }
+
+      if (_user != null) {
+        await StorageUtils.saveUserInfo(
+          userId: _user!.id,
+          email: _user!.email ?? '',
+          name: _user!.name,
+        );
+      }
+
       _setStatus(AuthStatus.authenticated);
 
       // Send FCM token to server
@@ -134,7 +149,21 @@ class AuthProvider extends ChangeNotifier {
         ward: ward,
         consentGiven: consentGiven,
       );
-      _user = response.user;
+      // Keep behavior consistent with login: load canonical profile from API.
+      try {
+        _user = await _repository.getProfile();
+      } catch (_) {
+        _user = response.user;
+      }
+
+      if (_user != null) {
+        await StorageUtils.saveUserInfo(
+          userId: _user!.id,
+          email: _user!.email ?? '',
+          name: _user!.name,
+        );
+      }
+
       _setStatus(AuthStatus.authenticated);
 
       // Send FCM token to server
