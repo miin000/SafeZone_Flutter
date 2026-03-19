@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_flutter/data/models/health_info_model.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_flutter/presentation/providers/health_info_provider.dart';
+import 'package:mobile_flutter/presentation/screens/health_info/health_info_detail_screen.dart';
 
 class HealthInfoTab extends StatefulWidget {
   const HealthInfoTab({super.key});
@@ -85,7 +87,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
     );
   }
 
-  Widget _buildHealthInfoCard(dynamic healthInfo) {
+  Widget _buildHealthInfoCard(HealthInfo healthInfo) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -152,7 +154,9 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  healthInfo.content,
+                  healthInfo.summary?.trim().isNotEmpty == true
+                      ? healthInfo.summary!
+                      : healthInfo.content,
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
@@ -182,6 +186,33 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                       ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _MetaChip(label: 'Bệnh: ${healthInfo.diseaseType}'),
+                    _MetaChip(label: 'Đối tượng: ${healthInfo.target}'),
+                    _MetaChip(label: 'Mức độ: ${healthInfo.severityLevel}'),
+                    ...healthInfo.tags.take(2).map((tag) => _MetaChip(label: '#$tag')),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              HealthInfoDetailScreen(initialData: healthInfo),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Xem chi tiết'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -192,5 +223,30 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  final String label;
+
+  const _MetaChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: Colors.grey.shade700,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
   }
 }

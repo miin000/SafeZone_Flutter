@@ -3,7 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_flutter/core/constants/app_colors.dart';
+import 'package:mobile_flutter/core/constants/api_constants.dart';
+import 'package:mobile_flutter/core/network/api_client.dart';
 import 'package:mobile_flutter/domain/entities/epidemic_zone.dart';
+import 'package:mobile_flutter/presentation/providers/auth_provider.dart';
 import 'package:mobile_flutter/presentation/providers/zone_provider.dart';
 import 'package:mobile_flutter/presentation/providers/location_provider.dart';
 import 'zone_list_screen.dart';
@@ -19,6 +22,8 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   bool _showLegend = true;
   String? _selectedDiseaseFilter;
+  bool _casesLoading = false;
+  List<_MapCase> _cases = [];
 
   @override
   void initState() {
@@ -37,6 +42,96 @@ class _MapScreenState extends State<MapScreen> {
 
     // Load zones from API
     await zoneProvider.fetchZones();
+    await _loadCases();
+  }
+
+  Future<void> _loadCases() async {
+    setState(() => _casesLoading = true);
+    try {
+      final response = await ApiClient.instance.get(ApiConstants.gisCases);
+      final data = response.data;
+
+      if (data is Map && data['features'] is List) {
+        final features = data['features'] as List;
+        final parsedCases = <_MapCase>[];
+
+        for (final feature in features) {
+          if (feature is! Map) continue;
+          final geometry = feature['geometry'];
+          final properties = feature['properties'];
+          if (geometry is! Map || properties is! Map) continue;
+
+          final coords = geometry['coordinates'];
+          if (coords is! List || coords.length < 2) continue;
+
+          final lon = (coords[0] as num?)?.toDouble();
+          final lat = (coords[1] as num?)?.toDouble();
+          if (lat == null || lon == null) continue;
+
+          parsedCases.add(
+            _MapCase(
+              id: properties['id']?.toString() ?? '',
+              diseaseType: properties['disease_type']?.toString() ?? 'Unknown',
+              status: properties['status']?.toString() ?? 'unknown',
+              reportedTime: properties['reported_time']?.toString(),
+              patientName: properties['patient_name']?.toString(),
+              notes: properties['notes']?.toString(),
+              regionName: properties['region_name']?.toString(),
+              lat: lat,
+              lon: lon,
+            ),
+          );
+        }
+
+        if (mounted) {
+          setState(() {
+            _cases = parsedCases;
+          });
+        }
+      }
+    } catch (_) {
+      // Keep map usable even if case API fails.
+    } finally {
+      if (mounted) {
+        setState(() => _casesLoading = false);
+      }
+    }
+  }
+
+  Color _getCaseStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+        return Colors.red.shade700;
+      case 'probable':
+        return Colors.deepOrange;
+      case 'suspected':
+        return Colors.orange;
+      case 'under treatment':
+        return Colors.blue;
+      case 'under observation':
+        return Colors.cyan.shade700;
+      case 'recovered':
+        return Colors.green;
+      case 'deceased':
+      case 'died':
+        return Colors.black87;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  void _showCaseDetails(_MapCase caseData) {
+    final authProvider = context.read<AuthProvider>();
+    final canViewSensitive = authProvider.user?.role.name == 'admin' ||
+        authProvider.user?.role.name == 'healthWorker';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) =>
+          _CaseDetailSheet(caseData: caseData, canViewSensitive: canViewSensitive),
+    );
   }
 
   void _centerOnUserLocation() {
@@ -155,6 +250,31 @@ class _MapScreenState extends State<MapScreen> {
                   // Zone markers
                   MarkerLayer(
                     markers: [
+                      ..._cases.map((caseData) {
+                        return Marker(
+                          point: LatLng(caseData.lat, caseData.lon),
+                          width: 26,
+                          height: 26,
+                          child: GestureDetector(
+                            onTap: () => _showCaseDetails(caseData),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: _getCaseStatusColor(caseData.status),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.22),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+
                       // Zone center markers
                       ...zones.map((zone) {
                         return Marker(
@@ -318,7 +438,8 @@ class _MapScreenState extends State<MapScreen> {
 
               // Loading indicator
               if (zoneProvider.status == ZoneStatus.loading ||
-                  locationProvider.status == LocationStatus.loading)
+                  locationProvider.status == LocationStatus.loading ||
+                  _casesLoading)
                 const Center(
                   child: Card(
                     child: Padding(
@@ -353,7 +474,7 @@ class _MapScreenState extends State<MapScreen> {
                       const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
                       const SizedBox(width: 8),
                       Text(
-                        '${zones.length} vùng dịch',
+                        '${zones.length} vùng dịch • ${_cases.length} ca bệnh',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -521,6 +642,11 @@ class _MapLegend extends StatelessWidget {
           _LegendItem(color: Colors.red, label: 'Cao'),
           _LegendItem(color: Colors.orange, label: 'Trung bình'),
           _LegendItem(color: Colors.yellow.shade700, label: 'Thấp'),
+          const Divider(),
+          _LegendItem(color: Colors.red.shade700, label: 'Ca xác nhận'),
+          _LegendItem(color: Colors.orange, label: 'Ca nghi ngờ'),
+          _LegendItem(color: Colors.blue, label: 'Đang điều trị'),
+          _LegendItem(color: Colors.green, label: 'Đã hồi phục'),
           const Divider(),
           const _LegendItem(
             icon: Icons.person,
@@ -867,6 +993,107 @@ class _StatItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _MapCase {
+  final String id;
+  final String diseaseType;
+  final String status;
+  final String? reportedTime;
+  final String? patientName;
+  final String? notes;
+  final String? regionName;
+  final double lat;
+  final double lon;
+
+  const _MapCase({
+    required this.id,
+    required this.diseaseType,
+    required this.status,
+    required this.reportedTime,
+    required this.patientName,
+    required this.notes,
+    required this.regionName,
+    required this.lat,
+    required this.lon,
+  });
+}
+
+class _CaseDetailSheet extends StatelessWidget {
+  final _MapCase caseData;
+  final bool canViewSensitive;
+
+  const _CaseDetailSheet({
+    required this.caseData,
+    required this.canViewSensitive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              canViewSensitive
+                  ? 'Ca bệnh ${caseData.id.isEmpty ? '' : '#${caseData.id}'}'
+                  : 'Thông tin ca bệnh',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            Text('Loại bệnh: ${caseData.diseaseType}'),
+            const SizedBox(height: 6),
+            Text('Trạng thái: ${caseData.status}'),
+            const SizedBox(height: 6),
+            Text('Khu vực: ${caseData.regionName ?? 'Không rõ'}'),
+            const SizedBox(height: 6),
+            Text(
+              'Thời gian báo cáo: ${caseData.reportedTime ?? 'Không rõ'}',
+            ),
+            if (canViewSensitive) ...[
+              const SizedBox(height: 6),
+              Text('Bệnh nhân: ${caseData.patientName?.isNotEmpty == true ? caseData.patientName : 'Ẩn danh'}'),
+            ],
+            if (canViewSensitive && caseData.notes?.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              Text('Ghi chú: ${caseData.notes}'),
+            ],
+            if (canViewSensitive) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Tọa độ: ${caseData.lat.toStringAsFixed(5)}, ${caseData.lon.toStringAsFixed(5)}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+            ] else ...[
+              const SizedBox(height: 10),
+              Text(
+                'Chi tiết bệnh nhân chỉ dành cho cơ quan y tế.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

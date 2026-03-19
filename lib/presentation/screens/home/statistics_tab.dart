@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_flutter/domain/entities/epidemic_zone.dart';
@@ -15,7 +13,8 @@ class StatisticsTab extends StatefulWidget {
 }
 
 class _StatisticsTabState extends State<StatisticsTab> {
-  int _timelineDays = 30;
+  int _timelineDays = 7;
+  DateTime? _lastNearbyStatsAt;
 
   @override
   void initState() {
@@ -25,15 +24,34 @@ class _StatisticsTabState extends State<StatisticsTab> {
       context.read<StatisticsProvider>().fetchStatistics();
       context.read<StatisticsProvider>().fetchTimeline(days: _timelineDays);
       _loadNearbyStats();
+      context.read<LocationProvider>().addListener(_onLocationUpdated);
     });
+  }
+
+  void _onLocationUpdated() {
+    if (!mounted) return;
+    final locationProvider = context.read<LocationProvider>();
+    if (locationProvider.currentPosition == null) return;
+
+    final now = DateTime.now();
+    if (_lastNearbyStatsAt != null &&
+        now.difference(_lastNearbyStatsAt!).inSeconds < 30) {
+      return;
+    }
+
+    _loadNearbyStats();
   }
 
   Future<void> _loadNearbyStats() async {
     final locationProvider = context.read<LocationProvider>();
     final zoneProvider = context.read<ZoneProvider>();
 
-    await locationProvider.getCurrentLocation();
-    final position = locationProvider.currentPosition;
+    var position = locationProvider.currentPosition;
+    if (position == null) {
+      await locationProvider.getCurrentLocation();
+      position = locationProvider.currentPosition;
+    }
+
     if (position == null) return;
 
     await zoneProvider.fetchZonesNearby(
@@ -41,6 +59,13 @@ class _StatisticsTabState extends State<StatisticsTab> {
       longitude: position.longitude,
       radiusKm: 5,
     );
+    _lastNearbyStatsAt = DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    context.read<LocationProvider>().removeListener(_onLocationUpdated);
+    super.dispose();
   }
 
   @override
@@ -87,29 +112,19 @@ class _StatisticsTabState extends State<StatisticsTab> {
             const SizedBox(height: 12),
 
             // Disease Distribution
-            _buildSectionTitle('Phân bố theo bệnh'),
+            _buildSectionTitle('Top 5 bệnh (biểu đồ)'),
             _buildDiseaseDistribution(stats.byDisease),
             const SizedBox(height: 20),
 
             // Status Distribution
-            _buildSectionTitle('Phân bố theo trạng thái'),
+            _buildSectionTitle('Top 5 trạng thái (biểu đồ)'),
             _buildStatusDistribution(stats.byStatus),
             const SizedBox(height: 20),
-
-            // Trend
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionTitle('Xu hướng'),
-                _buildTrendCards(stats.trend),
-                const SizedBox(height: 20),
-              ],
-            ),
 
             _buildSectionTitle('Diễn biến theo ngày'),
             _buildTimelineRangeFilter(provider),
             const SizedBox(height: 12),
-            _buildTimelinePieChart(provider.timeline),
+            _buildTimelineBarChart(provider.timeline),
             const SizedBox(height: 20),
 
             // Top Regions
@@ -117,7 +132,7 @@ class _StatisticsTabState extends State<StatisticsTab> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionTitle('Top vùng miền'),
+                  _buildSectionTitle('Top 5 vùng miền'),
                   ..._buildRegionList(stats.byRegion),
                   const SizedBox(height: 20),
                 ],
@@ -341,14 +356,11 @@ class _StatisticsTabState extends State<StatisticsTab> {
   }
 
   Widget _buildDiseaseDistribution(Map<String, int> byDisease) {
-    return Column(
-      children: byDisease.entries
-          .map((e) => _buildDistributionItem(
-                name: e.key,
-                count: e.value,
-                color: _diseaseColor(e.key),
-              ))
-          .toList(),
+    final topEntries = [...byDisease.entries]
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return _buildHorizontalBarChart(
+      entries: topEntries.take(5).toList(),
+      colorBuilder: (name) => _diseaseColor(name),
     );
   }
 
@@ -368,78 +380,63 @@ class _StatisticsTabState extends State<StatisticsTab> {
   }
 
   Widget _buildStatusDistribution(Map<String, int> byStatus) {
-    return Column(
-      children: byStatus.entries
-          .map((e) => _buildDistributionItem(
-                name: e.key,
-                count: e.value,
-                color: Colors.teal,
-              ))
-          .toList(),
+    final topEntries = [...byStatus.entries]
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return _buildHorizontalBarChart(
+      entries: topEntries.take(5).toList(),
+      colorBuilder: (_) => Colors.teal,
     );
   }
 
-  Widget _buildDistributionItem({
-    required String name,
-    required int count,
-    required Color color,
+  Widget _buildHorizontalBarChart({
+    required List<MapEntry<String, int>> entries,
+    required Color Function(String name) colorBuilder,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-          Text(
-            count.toString(),
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    if (entries.isEmpty) {
+      return const Text('Không có dữ liệu');
+    }
 
-  Widget _buildTrendCards(dynamic trend) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildTrendCard(
-            label: 'Hôm nay',
-            value: trend.today.toString(),
+    final maxValue = entries.map((e) => e.value).fold<int>(0, (a, b) => a > b ? a : b);
+
+    return Column(
+      children: entries.map((entry) {
+        final color = colorBuilder(entry.key);
+        final ratio = maxValue == 0 ? 0.0 : entry.value / maxValue;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      entry.key,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    entry.value.toString(),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 10,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildTrendCard(
-            label: 'Tuần này',
-            value: trend.thisWeek.toString(),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildTrendCard(
-            label: 'Thay đổi',
-            value: '${trend.percentChange}%',
-            isTrend: true,
-          ),
-        ),
-      ],
+        );
+      }).toList(),
     );
   }
 
@@ -476,7 +473,11 @@ class _StatisticsTabState extends State<StatisticsTab> {
   }
 
   List<Widget> _buildRegionList(List<dynamic> regions) {
-    return regions
+    final sorted = [...regions]
+      ..sort((a, b) => (b.count as num).compareTo(a.count as num));
+
+    return sorted
+        .take(5)
         .map((region) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Container(
@@ -523,7 +524,7 @@ class _StatisticsTabState extends State<StatisticsTab> {
   }
 
   Widget _buildTimelineRangeFilter(StatisticsProvider provider) {
-    final options = [7, 30, 90, 180];
+    final options = [7, 14, 30];
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -546,7 +547,7 @@ class _StatisticsTabState extends State<StatisticsTab> {
     );
   }
 
-  Widget _buildTimelinePieChart(dynamic timelineData) {
+  Widget _buildTimelineBarChart(dynamic timelineData) {
     final points = timelineData?.timeline as List<dynamic>?;
     if (points == null || points.isEmpty) {
       return Container(
@@ -590,50 +591,13 @@ class _StatisticsTabState extends State<StatisticsTab> {
     }
 
     final sorted = [...filtered]
-      ..sort((a, b) => (b.count as int).compareTo(a.count as int));
+      ..sort((a, b) => a.date.toString().compareTo(b.date.toString()));
 
-    const palette = [
-      Color(0xFF1565C0),
-      Color(0xFF00897B),
-      Color(0xFFF4511E),
-      Color(0xFF6A1B9A),
-      Color(0xFF2E7D32),
-      Color(0xFFEF6C00),
-      Color(0xFF546E7A),
-      Color(0xFFC62828),
-    ];
-
-    final slices = <_TimelineSlice>[];
-    final topCount = sorted.length > 6 ? 6 : sorted.length;
-    for (var i = 0; i < topCount; i++) {
-      final point = sorted[i];
-      final rawDate = point.date.toString();
-      final label = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
-      slices.add(
-        _TimelineSlice(
-          label: label,
-          count: point.count as int,
-          color: palette[i % palette.length],
-        ),
-      );
-    }
-
-    if (sorted.length > topCount) {
-      final otherCount = sorted
-          .skip(topCount)
-          .fold<int>(0, (sum, point) => sum + (point.count as int));
-      if (otherCount > 0) {
-        slices.add(
-          const _TimelineSlice(
-            label: 'Các ngày khác',
-            count: 0,
-            color: Color(0xFF90A4AE),
-          ).copyWith(count: otherCount),
-        );
-      }
-    }
-
-    final total = slices.fold<int>(0, (sum, s) => sum + s.count);
+    final maxCount = sorted
+        .map((point) => point.count as int)
+        .fold<int>(1, (max, value) => value > max ? value : max);
+    final total = sorted
+        .fold<int>(0, (sum, point) => sum + (point.count as int));
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -645,147 +609,62 @@ class _StatisticsTabState extends State<StatisticsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: SizedBox(
-              width: 180,
-              height: 180,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CustomPaint(
-                    size: const Size(180, 180),
-                    painter: _PieChartPainter(slices),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Tổng ca',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      Text(
-                        '$total',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '7 ngày gần nhất',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
-            ),
+              Text(
+                'Tổng: $total ca',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
-          ...slices.map((slice) {
-            final percent = total == 0 ? 0 : (slice.count / total) * 100;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: slice.color,
-                      borderRadius: BorderRadius.circular(3),
+          SizedBox(
+            height: 190,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: sorted.map((point) {
+                final rawDate = point.date.toString();
+                final shortDate = rawDate.length >= 10 ? rawDate.substring(5, 10) : rawDate;
+                final count = point.count as int;
+                final barHeight = maxCount == 0 ? 0.0 : (count / maxCount) * 130;
+
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          '$count',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          height: barHeight.clamp(6, 130),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1976D2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          shortDate,
+                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      slice.label,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  Text(
-                    '${slice.count} (${percent.toStringAsFixed(1)}%)',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
+                );
+              }).toList(),
+            ),
+          ),
         ],
       ),
     );
-  }
-}
-
-class _TimelineSlice {
-  final String label;
-  final int count;
-  final Color color;
-
-  const _TimelineSlice({
-    required this.label,
-    required this.count,
-    required this.color,
-  });
-
-  _TimelineSlice copyWith({String? label, int? count, Color? color}) {
-    return _TimelineSlice(
-      label: label ?? this.label,
-      count: count ?? this.count,
-      color: color ?? this.color,
-    );
-  }
-}
-
-class _PieChartPainter extends CustomPainter {
-  final List<_TimelineSlice> slices;
-
-  _PieChartPainter(this.slices);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (slices.isEmpty) {
-      return;
-    }
-
-    final total = slices.fold<int>(0, (sum, s) => sum + s.count);
-    if (total <= 0) {
-      return;
-    }
-
-    final rect = Rect.fromCircle(
-      center: Offset(size.width / 2, size.height / 2),
-      radius: math.min(size.width, size.height) / 2,
-    );
-
-    var startAngle = -math.pi / 2;
-    for (final slice in slices) {
-      final sweepAngle = (slice.count / total) * 2 * math.pi;
-      final paint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = slice.color;
-      canvas.drawArc(rect, startAngle, sweepAngle, true, paint);
-      startAngle += sweepAngle;
-    }
-
-    final holePaint = Paint()..color = Colors.white;
-    canvas.drawCircle(
-      Offset(size.width / 2, size.height / 2),
-      math.min(size.width, size.height) * 0.28,
-      holePaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _PieChartPainter oldDelegate) {
-    if (oldDelegate.slices.length != slices.length) {
-      return true;
-    }
-    for (var i = 0; i < slices.length; i++) {
-      if (oldDelegate.slices[i].label != slices[i].label ||
-          oldDelegate.slices[i].count != slices[i].count ||
-          oldDelegate.slices[i].color != slices[i].color) {
-        return true;
-      }
-    }
-    return false;
   }
 }

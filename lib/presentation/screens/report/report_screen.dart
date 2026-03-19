@@ -8,6 +8,7 @@ import '../../../core/services/geocoding_service.dart';
 import '../../providers/report_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
 import 'verification_required_dialog.dart';
 import 'detailed_case_report_screen.dart';
@@ -232,6 +233,11 @@ class _ReportScreenState extends State<ReportScreen> {
       return; // User chose not to verify or cancelled
     }
 
+    final otpConfirmed = await _confirmEmailOtpForSubmission();
+    if (!otpConfirmed) {
+      return;
+    }
+
     final request = CreateReportRequest(
       diseaseType: _selectedDiseaseType!,
       description: _descriptionController.text.trim(),
@@ -280,6 +286,95 @@ class _ReportScreenState extends State<ReportScreen> {
         );
       }
     }
+  }
+
+  Future<bool> _confirmEmailOtpForSubmission() async {
+    final authProvider = context.read<AuthProvider>();
+    final email = authProvider.user?.email?.trim() ?? '';
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng cập nhật email trước khi gửi báo cáo.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return false;
+    }
+
+    final sent = await authProvider.sendEmailOtp();
+    if (!sent) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.error ?? 'Không gửi được OTP email.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+
+    if (!mounted) return false;
+
+    final otpController = TextEditingController();
+    var verified = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Xác nhận OTP email'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Nhập mã OTP đã gửi đến $email'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Mã OTP',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final otp = otpController.text.trim();
+                if (otp.isEmpty) return;
+                final ok = await authProvider.verifyEmailOtp(otp);
+                if (ok && dialogContext.mounted) {
+                  verified = true;
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: const Text('Xác nhận'),
+            ),
+          ],
+        );
+      },
+    );
+
+    otpController.dispose();
+
+    if (!verified && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.error ?? 'Xác thực OTP thất bại.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+
+    return verified;
   }
 
   void _resetForm() {

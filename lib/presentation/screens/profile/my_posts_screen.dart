@@ -147,7 +147,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                         Row(
                           children: [
                             Text(
-                              post.authorName,
+                              'Bạn',
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,

@@ -37,8 +37,8 @@ class NotificationModel {
       final hasTimezone =
           createdAtRaw.endsWith('Z') ||
           RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(createdAtRaw);
-      final normalized = hasTimezone ? createdAtRaw : '${createdAtRaw}Z';
-      createdAt = DateTime.parse(normalized).toLocal();
+      final parsed = DateTime.parse(createdAtRaw);
+      createdAt = hasTimezone ? parsed.toLocal() : parsed;
     }
 
     return NotificationModel(

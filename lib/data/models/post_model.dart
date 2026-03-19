@@ -69,14 +69,18 @@ class PostModel extends Equatable {
     );
   }
 
-      static DateTime _parseDateTime(dynamic raw) {
-      if (raw == null) return DateTime.now();
-      final value = raw.toString();
-      final hasTimezone =
+  static DateTime _parseDateTime(dynamic raw) {
+    if (raw == null) return DateTime.now();
+
+    final value = raw.toString();
+    final hasTimezone =
         value.endsWith('Z') || RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(value);
-      final normalized = hasTimezone ? value : '${value}Z';
-      return DateTime.parse(normalized).toLocal();
-      }
+
+    // If server already sends timezone, convert to local.
+    // If server sends local time string without timezone, keep it as local.
+    final parsed = DateTime.parse(value);
+    return hasTimezone ? parsed.toLocal() : parsed;
+  }
 
   Map<String, dynamic> toJson() {
     return {

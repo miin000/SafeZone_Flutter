@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_flutter/data/models/post_model.dart';
 import 'package:mobile_flutter/presentation/providers/post_provider.dart';
+import 'package:mobile_flutter/presentation/providers/auth_provider.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
@@ -38,6 +39,11 @@ class _PostCardState extends State<PostCard> {
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
+    final currentUserId = context.watch<AuthProvider>().user?.id;
+    final isMyPost = currentUserId != null && currentUserId == post.authorId;
+    final fallbackName = isMyPost ? 'Bạn' : 'Ẩn danh';
+    final displayAuthorName =
+        post.author?.name ?? (post.authorName == 'Ẩn danh' ? fallbackName : post.authorName);
 
     return Card(
       child: Padding(
@@ -63,7 +69,7 @@ class _PostCardState extends State<PostCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        post.author?.name ?? post.authorName ?? 'Ẩn danh',
+                        displayAuthorName,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       Row(

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'dart:async';
 
 enum LocationStatus { initial, loading, loaded, denied, error }
 
@@ -9,6 +10,8 @@ class LocationProvider extends ChangeNotifier {
   Position? _currentPosition;
   String? _errorMessage;
   bool _isTracking = false;
+  StreamSubscription<Position>? _positionSubscription;
+  Timer? _retryTimer;
 
   // Getters
   LocationStatus get status => _status;
@@ -63,7 +66,10 @@ class LocationProvider extends ChangeNotifier {
 
   /// Get current location
   Future<void> getCurrentLocation() async {
-    _status = LocationStatus.loading;
+    // Keep previously known location while refreshing in background.
+    if (_currentPosition == null) {
+      _status = LocationStatus.loading;
+    }
     _errorMessage = null;
     notifyListeners();
 
@@ -91,20 +97,23 @@ class LocationProvider extends ChangeNotifier {
 
   /// Start tracking location
   Future<void> startTracking() async {
-    if (_isTracking) return;
+    if (_isTracking && _positionSubscription != null) return;
 
     final hasPermission = await checkPermissions();
     if (!hasPermission) return;
 
+    await _positionSubscription?.cancel();
     _isTracking = true;
     notifyListeners();
 
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Update every 10 meters
+      distanceFilter: 20, // Update every 20 meters
     );
 
-    Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen(
       (Position position) {
         _currentPosition = position;
         _status = LocationStatus.loaded;
@@ -113,13 +122,26 @@ class LocationProvider extends ChangeNotifier {
       onError: (error) {
         debugPrint('Location tracking error: $error');
         _errorMessage = 'Lỗi theo dõi vị trí: $error';
+        _status = _currentPosition != null
+            ? LocationStatus.loaded
+            : LocationStatus.error;
+        _retryTimer?.cancel();
+        _retryTimer = Timer(const Duration(seconds: 3), () {
+          if (_isTracking) {
+            startTracking();
+          }
+        });
         notifyListeners();
       },
     );
   }
 
   /// Stop tracking location
-  void stopTracking() {
+  Future<void> stopTracking() async {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    await _positionSubscription?.cancel();
+    _positionSubscription = null;
     _isTracking = false;
     notifyListeners();
   }
@@ -154,10 +176,19 @@ class LocationProvider extends ChangeNotifier {
 
   /// Clear location data
   void clear() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _currentPosition = null;
     _status = LocationStatus.initial;
     _errorMessage = null;
     _isTracking = false;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    _positionSubscription?.cancel();
+    super.dispose();
   }
 }

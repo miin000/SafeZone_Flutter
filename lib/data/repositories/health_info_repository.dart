@@ -12,6 +12,8 @@ abstract class HealthInfoRepository {
   Future<HealthInfoResponse> fetchFeatured();
 
   Future<HealthInfoResponse> fetchByCategory(String category);
+
+  Future<HealthInfo> fetchById(String id);
 }
 
 class HealthInfoRepositoryImpl implements HealthInfoRepository {
@@ -59,6 +61,20 @@ class HealthInfoRepositoryImpl implements HealthInfoRepository {
       return _parseHealthInfoResponse(response.data);
     } catch (e) {
       throw Exception('Failed to fetch health info by category: $e');
+    }
+  }
+
+  @override
+  Future<HealthInfo> fetchById(String id) async {
+    try {
+      final response = await ApiClient.instance.get('/health-info/public/$id');
+      final payload = response.data;
+      if (payload is Map<String, dynamic>) {
+        return HealthInfo.fromJson(payload);
+      }
+      throw Exception('Invalid health info detail format');
+    } catch (e) {
+      throw Exception('Failed to fetch health info detail: $e');
     }
   }
 

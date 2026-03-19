@@ -2,8 +2,13 @@
 class HealthInfo {
   final String id;
   final String title;
+  final String? summary;
   final String content;
   final String? category;
+  final String diseaseType;
+  final String target;
+  final String severityLevel;
+  final List<String> tags;
   final String? imageUrl;
   final String? source;
   final bool published;
@@ -13,8 +18,13 @@ class HealthInfo {
   HealthInfo({
     required this.id,
     required this.title,
+    this.summary,
     required this.content,
     this.category,
+    required this.diseaseType,
+    required this.target,
+    required this.severityLevel,
+    required this.tags,
     this.imageUrl,
     this.source,
     required this.published,
@@ -49,8 +59,17 @@ class HealthInfo {
     return HealthInfo(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
+      summary: json['summary'] as String?,
       content: json['content'] ?? '',
       category: json['category'],
+      diseaseType: (json['diseaseType'] ?? 'general').toString(),
+      target: (json['target'] ?? 'general').toString(),
+      severityLevel: (json['severityLevel'] ?? 'low').toString(),
+      tags: (json['tags'] as List?)
+          ?.map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList() ??
+          const [],
       imageUrl: resolvedImageUrl,
       source: resolvedSource,
       published: json['published'] == true || status == 'published',
