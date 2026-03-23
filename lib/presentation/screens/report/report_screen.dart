@@ -11,6 +11,7 @@ import '../../providers/notification_provider.dart';
 import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
 import 'verification_required_dialog.dart';
+import '../auth/verification_screen.dart';
 import 'detailed_case_report_screen.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -204,6 +205,9 @@ class _ReportScreenState extends State<ReportScreen> {
   Future<void> _submitReport() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final reportProvider = context.read<ReportProvider>();
+    final notificationProvider = context.read<NotificationProvider>();
+
     if (_selectedDiseaseType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -259,13 +263,12 @@ class _ReportScreenState extends State<ReportScreen> {
       hasSimilarCasesNearby: _hasSimilarCasesNearby,
     );
 
-    final provider = context.read<ReportProvider>();
-    final success = await provider.createReport(request);
+    final success = await reportProvider.createReport(request);
 
     if (mounted) {
       if (success) {
         // Refresh notifications to show the new notification
-        context.read<NotificationProvider>().loadNotifications();
+        notificationProvider.loadNotifications();
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -280,7 +283,7 @@ class _ReportScreenState extends State<ReportScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(provider.error ?? 'Gửi báo cáo thất bại'),
+            content: Text(reportProvider.error ?? 'Gửi báo cáo thất bại'),
             backgroundColor: Colors.red,
           ),
         );
@@ -302,79 +305,28 @@ class _ReportScreenState extends State<ReportScreen> {
       return false;
     }
 
-    final sent = await authProvider.sendEmailOtp();
-    if (!sent) {
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authProvider.error ?? 'Không gửi được OTP email.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return false;
-    }
-
     if (!mounted) return false;
 
-    final otpController = TextEditingController();
-    var verified = false;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Xác nhận OTP email'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Nhập mã OTP đã gửi đến $email'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: otpController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Mã OTP',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Hủy'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final otp = otpController.text.trim();
-                if (otp.isEmpty) return;
-                final ok = await authProvider.verifyEmailOtp(otp);
-                if (ok && dialogContext.mounted) {
-                  verified = true;
-                  Navigator.of(dialogContext).pop();
-                }
-              },
-              child: const Text('Xác nhận'),
-            ),
-          ],
-        );
-      },
+    final verified = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const VerificationScreen(
+          type: VerificationType.email,
+          canSkip: false,
+        ),
+      ),
     );
 
-    otpController.dispose();
-
-    if (!verified && mounted) {
+    if (verified != true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authProvider.error ?? 'Xác thực OTP thất bại.'),
           backgroundColor: Colors.red,
         ),
       );
+      return false;
     }
 
-    return verified;
+    return true;
   }
 
   void _resetForm() {

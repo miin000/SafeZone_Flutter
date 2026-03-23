@@ -32,6 +32,7 @@ class PostProvider extends ChangeNotifier {
   int _currentPage = 1;
   final int _pageSize = 10;
   bool _isLoading = false;
+  bool _isCreatingPost = false;
   String? _error;
   bool _isInitialized = false;
 
@@ -40,12 +41,18 @@ class PostProvider extends ChangeNotifier {
   List<PostModel> get drafts => List.unmodifiable(_drafts);
   bool get hasMorePosts => _hasMorePosts;
   bool get isLoading => _isLoading;
+  bool get isCreatingPost => _isCreatingPost;
   String? get error => _error;
   bool get isInitialized => _isInitialized;
   UserModel? get currentUser => _currentUser;
 
   void _setLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  void _setCreatingPost(bool value) {
+    _isCreatingPost = value;
     notifyListeners();
   }
 
@@ -163,8 +170,13 @@ class PostProvider extends ChangeNotifier {
   }
 
   // Method: refreshPosts - Reload all posts
-  Future<void> refreshPosts() async {
-    _setLoading(true);
+  Future<void> refreshPosts({bool showLoading = true}) async {
+    if (_isLoading) return;
+
+    final shouldShowLoading = showLoading || _posts.isEmpty;
+    if (shouldShowLoading) {
+      _setLoading(true);
+    }
     _setError(null);
     
     try {
@@ -182,12 +194,16 @@ class PostProvider extends ChangeNotifier {
         _mergePosts(newPosts);
       }
 
-      _setLoading(false);
+      if (shouldShowLoading) {
+        _setLoading(false);
+      }
       notifyListeners();
     } catch (e) {
       await _loadFromLocal();
       _setError(e.toString().replaceAll('Exception: ', ''));
-      _setLoading(false);
+      if (shouldShowLoading) {
+        _setLoading(false);
+      }
     }
   }
 
@@ -375,7 +391,11 @@ class PostProvider extends ChangeNotifier {
     print('=== PROVIDER: createPost ===');
     print('Request: ${request.toJson()}');
 
-    _setLoading(true);
+    if (_isCreatingPost) {
+      throw Exception('Đang gửi bài viết, vui lòng đợi.');
+    }
+
+    _setCreatingPost(true);
     _setError(null);
 
     try {
@@ -396,7 +416,7 @@ class PostProvider extends ChangeNotifier {
       // Lưu vào local storage
       await _localDatasource.savePosts([postWithAuthor]);
 
-      _setLoading(false);
+      _setCreatingPost(false);
       notifyListeners();
 
       print('Post added to list. Total: ${_posts.length}');
@@ -405,7 +425,7 @@ class PostProvider extends ChangeNotifier {
     } catch (e) {
       print('Provider error: $e');
       _setError('Không thể tạo bài viết: ${e.toString()}');
-      _setLoading(false);
+      _setCreatingPost(false);
       rethrow;
     }
   }

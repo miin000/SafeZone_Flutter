@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_flutter/presentation/providers/post_provider.dart';
@@ -12,13 +14,32 @@ class CommunityScreen extends StatefulWidget {
 }
 
 class _CommunityScreenState extends State<CommunityScreen> {
+  Timer? _refreshTimer;
+
   @override
   void initState() {
     super.initState();
     // Load posts when screen initializes
     Future.microtask(() {
-      context.read<PostProvider>().initialize();
+      if (!mounted) return;
+      final provider = context.read<PostProvider>();
+      provider.initialize();
+      _startAutoRefresh();
     });
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
+      context.read<PostProvider>().refreshPosts(showLoading: false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -63,14 +84,17 @@ class _CommunityScreenState extends State<CommunityScreen> {
             );
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(8),
-            itemCount: postProvider.posts.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final post = postProvider.posts[index];
-              return PostCard(post: post);
-            },
+          return RefreshIndicator(
+            onRefresh: () => postProvider.refreshPosts(),
+            child: ListView.separated(
+              padding: const EdgeInsets.all(8),
+              itemCount: postProvider.posts.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final post = postProvider.posts[index];
+                return PostCard(post: post);
+              },
+            ),
           );
         },
       ),

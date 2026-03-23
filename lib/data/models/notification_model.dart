@@ -34,11 +34,17 @@ class NotificationModel {
     DateTime createdAt = DateTime.now();
 
     if (createdAtRaw != null && createdAtRaw.isNotEmpty) {
-      final hasTimezone =
-          createdAtRaw.endsWith('Z') ||
-          RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(createdAtRaw);
-      final parsed = DateTime.parse(createdAtRaw);
-      createdAt = hasTimezone ? parsed.toLocal() : parsed;
+      try {
+        final hasTimezone =
+            createdAtRaw.endsWith('Z') ||
+            RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(createdAtRaw);
+        // Backend may return UTC without timezone suffix. Treat it as UTC to
+        // avoid showing stale offsets such as "7 giờ trước" for new items.
+        final normalized = hasTimezone ? createdAtRaw : '${createdAtRaw}Z';
+        createdAt = DateTime.parse(normalized).toLocal();
+      } catch (_) {
+        createdAt = DateTime.now();
+      }
     }
 
     return NotificationModel(

@@ -111,11 +111,14 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton.icon(
-                        onPressed: postProvider.isLoading
+                        onPressed: postProvider.isCreatingPost
                             ? null
                             : () async {
+                          final navigator = Navigator.of(context);
+                          final messenger = ScaffoldMessenger.of(context);
+
                           if (_contentController.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               const SnackBar(
                                 content: Text('Vui lòng nhập nội dung'),
                               ),
@@ -136,25 +139,23 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
 
                             await postProvider.createPost(request);
 
-                            if (mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bài viết đã được tạo!'),
-                                ),
-                              );
-                            }
+                            if (!mounted) return;
+                            navigator.pop();
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Bài viết đã được tạo!'),
+                              ),
+                            );
                           } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Lỗi: ${e.toString()}'),
-                                ),
-                              );
-                            }
+                            if (!mounted) return;
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Lỗi: ${e.toString()}'),
+                              ),
+                            );
                           }
                         },
-                        icon: postProvider.isLoading
+                        icon: postProvider.isCreatingPost
                             ? const SizedBox(
                           width: 20,
                           height: 20,

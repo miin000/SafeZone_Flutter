@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/notification_model.dart';
@@ -16,20 +18,43 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onTabChanged);
     
     // Load notifications on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NotificationProvider>().loadNotifications(refresh: true);
+      _startAutoRefresh();
+    });
+  }
+
+  void _onTabChanged() {
+    if (!mounted || _tabController.indexIsChanging) return;
+    if (_tabController.index == 1) {
+      context.read<PostProvider>().refreshPosts(showLoading: false);
+    }
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      if (!mounted) return;
+      await context.read<NotificationProvider>().loadNotifications(refresh: true);
+      if (_tabController.index == 1 && mounted) {
+        await context.read<PostProvider>().refreshPosts(showLoading: false);
+      }
     });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -303,7 +328,7 @@ class _CommunityTabState extends State<_CommunityTab> {
     // Load posts when tab initializes
     Future.microtask(() {
       if (mounted) {
-        context.read<PostProvider>().loadMorePosts();
+        context.read<PostProvider>().initialize();
       }
     });
   }
@@ -347,14 +372,17 @@ class _CommunityTabState extends State<_CommunityTab> {
               );
             }
 
-            return ListView.separated(
-              padding: const EdgeInsets.all(8),
-              itemCount: postProvider.posts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final post = postProvider.posts[index];
-                return PostCard(post: post);
-              },
+            return RefreshIndicator(
+              onRefresh: () => postProvider.refreshPosts(),
+              child: ListView.separated(
+                padding: const EdgeInsets.all(8),
+                itemCount: postProvider.posts.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final post = postProvider.posts[index];
+                  return PostCard(post: post);
+                },
+              ),
             );
           },
         ),

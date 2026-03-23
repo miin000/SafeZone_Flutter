@@ -18,16 +18,31 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
+  final Distance _distance = const Distance();
   bool _showLegend = true;
   String? _selectedDiseaseFilter;
   bool _casesLoading = false;
   List<_MapCase> _cases = [];
+  late final AnimationController _dangerPulseController;
+  late final Animation<double> _dangerPulseScale;
+  ZoneRiskLevel? _activeDangerRisk;
 
   @override
   void initState() {
     super.initState();
+    _dangerPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _dangerPulseScale = Tween<double>(begin: 0.92, end: 1.2).animate(
+      CurvedAnimation(
+        parent: _dangerPulseController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeMap();
     });
@@ -37,12 +52,64 @@ class _MapScreenState extends State<MapScreen> {
     final locationProvider = context.read<LocationProvider>();
     final zoneProvider = context.read<ZoneProvider>();
 
-    // Get user location
-    await locationProvider.getCurrentLocation();
+    // Load map data in parallel to reduce first-render latency.
+    await Future.wait([
+      locationProvider.getCurrentLocation(),
+      zoneProvider.fetchZones(),
+      _loadCases(),
+    ]);
+  }
 
-    // Load zones from API
-    await zoneProvider.fetchZones();
-    await _loadCases();
+  bool _isUserInsideAnyZone(LatLng userLocation, List<EpidemicZone> zones) {
+    for (final zone in zones) {
+      final center = LatLng(zone.latitude, zone.longitude);
+      final distanceMeters = _distance(userLocation, center);
+      if (distanceMeters <= zone.radiusMeters) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  ZoneRiskLevel? _getUserDangerRisk(LatLng userLocation, List<EpidemicZone> zones) {
+    ZoneRiskLevel? highestRisk;
+    for (final zone in zones) {
+      final center = LatLng(zone.latitude, zone.longitude);
+      final distanceMeters = _distance(userLocation, center);
+      if (distanceMeters > zone.radiusMeters) continue;
+
+      if (highestRisk == null || zone.riskLevel.index > highestRisk.index) {
+        highestRisk = zone.riskLevel;
+      }
+    }
+    return highestRisk;
+  }
+
+  Duration _pulseDurationForRisk(ZoneRiskLevel riskLevel) {
+    switch (riskLevel) {
+      case ZoneRiskLevel.critical:
+        return const Duration(milliseconds: 450);
+      case ZoneRiskLevel.high:
+        return const Duration(milliseconds: 650);
+      case ZoneRiskLevel.medium:
+        return const Duration(milliseconds: 900);
+      case ZoneRiskLevel.low:
+        return const Duration(milliseconds: 1200);
+    }
+  }
+
+  void _syncDangerPulse(ZoneRiskLevel? riskLevel) {
+    if (_activeDangerRisk == riskLevel || !mounted) return;
+    _activeDangerRisk = riskLevel;
+
+    if (riskLevel == null) {
+      return;
+    }
+
+    _dangerPulseController.duration = _pulseDurationForRisk(riskLevel);
+    _dangerPulseController
+      ..reset()
+      ..repeat(reverse: true);
   }
 
   Future<void> _loadCases() async {
@@ -208,12 +275,21 @@ class _MapScreenState extends State<MapScreen> {
         builder: (context, locationProvider, zoneProvider, child) {
           final userLocation = locationProvider.currentLatLng;
           final zones = _getFilteredZones(zoneProvider);
+          final userDangerRisk = userLocation != null
+            ? _getUserDangerRisk(userLocation, zoneProvider.activeZones)
+            : null;
+          final userInsideDangerZone = userLocation != null &&
+              _isUserInsideAnyZone(userLocation, zoneProvider.activeZones);
+          _syncDangerPulse(userDangerRisk);
           final diseaseFilters = zoneProvider.activeZones
               .map((z) => z.diseaseName)
               .where((name) => name.trim().isNotEmpty)
               .toSet()
               .toList()
             ..sort();
+          final warningColor = userDangerRisk != null
+            ? _getRiskColor(userDangerRisk)
+            : Colors.red;
 
           return Stack(
             children: [
@@ -309,26 +385,55 @@ class _MapScreenState extends State<MapScreen> {
                       if (userLocation != null)
                         Marker(
                           point: userLocation,
-                          width: 40,
-                          height: 40,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.blue,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.blue.withValues(alpha: 0.4),
-                                  blurRadius: 8,
-                                  spreadRadius: 2,
+                          width: 64,
+                          height: 64,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              if (userInsideDangerZone)
+                                AnimatedBuilder(
+                                  animation: _dangerPulseScale,
+                                  builder: (context, _) {
+                                    return Transform.scale(
+                                      scale: _dangerPulseScale.value,
+                                      child: Container(
+                                        width: 54,
+                                        height: 54,
+                                        decoration: BoxDecoration(
+                                          color: warningColor.withValues(alpha: 0.24),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: warningColor.withValues(alpha: 0.7),
+                                            width: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.person,
-                              color: Colors.white,
-                              size: 24,
-                            ),
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: userInsideDangerZone ? warningColor : Colors.blue,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 3),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: (userInsideDangerZone ? warningColor : Colors.blue)
+                                          .withValues(alpha: 0.4),
+                                      blurRadius: 8,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
@@ -426,6 +531,44 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ),
 
+              if (userInsideDangerZone)
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  top: 132,
+                  child: FadeTransition(
+                    opacity: _dangerPulseController,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: warningColor,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: warningColor.withValues(alpha: 0.28),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Cảnh báo mức ${userDangerRisk?.displayName ?? 'Cao'}: Bạn đang trong vùng dịch.',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
               // Legend
               if (_showLegend)
                 Positioned(
@@ -437,9 +580,8 @@ class _MapScreenState extends State<MapScreen> {
                 ),
 
               // Loading indicator
-              if (zoneProvider.status == ZoneStatus.loading ||
-                  locationProvider.status == LocationStatus.loading ||
-                  _casesLoading)
+              if ((zoneProvider.status == ZoneStatus.loading && zones.isEmpty) ||
+                  (_casesLoading && _cases.isEmpty))
                 const Center(
                   child: Card(
                     child: Padding(
@@ -553,6 +695,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _dangerPulseController.dispose();
     _mapController.dispose();
     super.dispose();
   }
