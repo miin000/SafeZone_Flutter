@@ -337,8 +337,10 @@ class _CommunityTabState extends State<_CommunityTab> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Consumer<PostProvider>(
-          builder: (context, postProvider, _) {
+        Container(
+          color: const Color(0xFFF6F8FB),
+          child: Consumer<PostProvider>(
+            builder: (context, postProvider, _) {
             if (postProvider.isLoading && postProvider.posts.isEmpty) {
               return const Center(
                 child: CircularProgressIndicator(),
@@ -372,19 +374,43 @@ class _CommunityTabState extends State<_CommunityTab> {
               );
             }
 
-            return RefreshIndicator(
-              onRefresh: () => postProvider.refreshPosts(),
-              child: ListView.separated(
-                padding: const EdgeInsets.all(8),
-                itemCount: postProvider.posts.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final post = postProvider.posts[index];
-                  return PostCard(post: post);
-                },
-              ),
-            );
-          },
+              return RefreshIndicator(
+                onRefresh: () => postProvider.refreshPosts(),
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+                  itemCount: postProvider.posts.length + 1,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          gradient: LinearGradient(
+                            colors: [Colors.blue.shade600, Colors.lightBlue.shade500],
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.campaign, color: Colors.white),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Cộng đồng SafeZone: chia sẻ thông tin chính xác, tránh tin chưa kiểm chứng.',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    final post = postProvider.posts[index - 1];
+                    return PostCard(post: post);
+                  },
+                ),
+              );
+            },
+          ),
         ),
         Positioned(
           right: 16,

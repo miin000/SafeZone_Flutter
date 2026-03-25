@@ -104,11 +104,7 @@ class _StatisticsTabState extends State<StatisticsTab> {
           padding: const EdgeInsets.all(16),
           children: [
             // Summary Cards
-            _buildSummaryCard(
-              title: 'Tổng cộng',
-              value: stats.total.toString(),
-              color: Colors.blue,
-            ),
+            _buildSummaryGrid(stats),
             const SizedBox(height: 12),
 
             // Disease Distribution
@@ -339,6 +335,26 @@ class _StatisticsTabState extends State<StatisticsTab> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSummaryGrid(dynamic stats) {
+    final confirmed = stats.byStatus['confirmed'] ?? 0;
+    final suspected = stats.byStatus['suspected'] ?? 0;
+    final recovered = stats.byStatus['recovered'] ?? 0;
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      childAspectRatio: 1.8,
+      children: [
+        _buildSummaryCard(title: 'Tổng ca', value: stats.total.toString(), color: Colors.blue),
+        _buildSummaryCard(title: 'Xác nhận', value: '$confirmed', color: Colors.red),
+        _buildSummaryCard(title: 'Nghi ngờ', value: '$suspected', color: Colors.orange),
+        _buildSummaryCard(title: 'Đã khỏi', value: '$recovered', color: Colors.green),
+      ],
     );
   }
 

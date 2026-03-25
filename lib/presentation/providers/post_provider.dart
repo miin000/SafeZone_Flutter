@@ -93,6 +93,11 @@ class PostProvider extends ChangeNotifier {
         .map((id) => existingById[id])
         .whereType<PostModel>()
         .toList();
+    _sortPostsNewest();
+  }
+
+  void _sortPostsNewest() {
+    _posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   // ========== THÊM CÁC METHOD BỊ THIẾU ==========
@@ -103,6 +108,7 @@ class PostProvider extends ChangeNotifier {
       final localPosts = await _localDatasource.getSavedPosts();
       if (localPosts.isNotEmpty) {
         _posts = localPosts;
+        _sortPostsNewest();
         notifyListeners();
       }
     } catch (e) {
@@ -482,24 +488,61 @@ class PostProvider extends ChangeNotifier {
 
   // React to post
   Future<PostModel> reactToPost(String postId, String reaction) async {
-    _setLoading(true);
     _setError(null);
+
+    final index = _posts.indexWhere((post) => post.id == postId);
+    if (index == -1) {
+      throw Exception('Không tìm thấy bài viết');
+    }
+
+    final previous = _posts[index];
+    final userId = _currentUser?.id;
+
+    if (userId != null && userId.isNotEmpty) {
+      final reactions = Map<String, String>.from(previous.userReactions);
+      final oldReaction = reactions[userId];
+
+      var helpfulCount = previous.helpfulCount;
+      var notHelpfulCount = previous.notHelpfulCount;
+
+      if (oldReaction == 'helpful') helpfulCount = (helpfulCount - 1).clamp(0, 1 << 30);
+      if (oldReaction == 'not_helpful') notHelpfulCount = (notHelpfulCount - 1).clamp(0, 1 << 30);
+
+      if (oldReaction == reaction) {
+        reactions.remove(userId);
+      } else {
+        reactions[userId] = reaction;
+        if (reaction == 'helpful') helpfulCount += 1;
+        if (reaction == 'not_helpful') notHelpfulCount += 1;
+      }
+
+      _posts[index] = previous.copyWith(
+        helpfulCount: helpfulCount,
+        notHelpfulCount: notHelpfulCount,
+        userReactions: reactions,
+      );
+      notifyListeners();
+    }
 
     try {
       final updatedPost = await _repository.reactToPost(postId, reaction);
 
       // Update in local list
-      final index = _posts.indexWhere((post) => post.id == postId);
-      if (index != -1) {
-        _posts[index] = updatedPost;
+      final updatedIndex = _posts.indexWhere((post) => post.id == postId);
+      if (updatedIndex != -1) {
+        _posts[updatedIndex] = updatedPost;
       }
 
-      _setLoading(false);
       notifyListeners();
       return updatedPost;
     } catch (e) {
+      // Roll back optimistic update on failure
+      final rollbackIndex = _posts.indexWhere((post) => post.id == postId);
+      if (rollbackIndex != -1) {
+        _posts[rollbackIndex] = previous;
+      }
       _setError(e.toString().replaceAll('Exception: ', ''));
-      _setLoading(false);
+      notifyListeners();
       rethrow;
     }
   }

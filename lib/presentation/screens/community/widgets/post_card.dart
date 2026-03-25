@@ -40,6 +40,12 @@ class _PostCardState extends State<PostCard> {
   Widget build(BuildContext context) {
     final post = widget.post;
     final currentUserId = context.watch<AuthProvider>().user?.id;
+    final currentReaction =
+        (currentUserId != null && currentUserId.isNotEmpty)
+            ? post.userReactions[currentUserId]
+            : null;
+    final isHelpfulSelected = currentReaction == 'helpful';
+    final isNotHelpfulSelected = currentReaction == 'not_helpful';
     final isMyPost = currentUserId != null && currentUserId == post.authorId;
     final fallbackName = isMyPost ? 'Bạn' : 'Ẩn danh';
     final displayAuthorName =
@@ -215,10 +221,14 @@ class _PostCardState extends State<PostCard> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: _reacting ? null : () => _react('helpful'),
-                    icon: const Icon(Icons.thumb_up_alt_outlined, size: 16),
+                    icon: Icon(
+                      isHelpfulSelected ? Icons.thumb_up : Icons.thumb_up_alt_outlined,
+                      size: 16,
+                    ),
                     label: Text('${post.helpfulCount} Hữu ích'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green.shade700,
+                      foregroundColor: isHelpfulSelected ? Colors.white : Colors.green.shade700,
+                      backgroundColor: isHelpfulSelected ? Colors.green.shade600 : null,
                     ),
                   ),
                 ),
@@ -226,10 +236,14 @@ class _PostCardState extends State<PostCard> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: _reacting ? null : () => _react('not_helpful'),
-                    icon: const Icon(Icons.thumb_down_alt_outlined, size: 16),
+                    icon: Icon(
+                      isNotHelpfulSelected ? Icons.thumb_down : Icons.thumb_down_alt_outlined,
+                      size: 16,
+                    ),
                     label: Text('${post.notHelpfulCount} Không hữu ích'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red.shade700,
+                      foregroundColor: isNotHelpfulSelected ? Colors.white : Colors.red.shade700,
+                      backgroundColor: isNotHelpfulSelected ? Colors.red.shade600 : null,
                     ),
                   ),
                 ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
+import '../../core/constants/api_constants.dart';
+import '../../core/network/api_client.dart';
+import '../../data/models/report_model.dart';
 import '../providers/zone_provider.dart';
 import '../providers/location_provider.dart';
 import '../../domain/entities/epidemic_zone.dart';
@@ -19,6 +22,10 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
   late AnimationController _animationController;
   late Animation<double> _pulseAnimation;
   bool _isExpanded = false;
+  bool _isCheckingNearbyCases = false;
+  DateTime? _lastNearbyCaseCheckAt;
+  String? _lastNearbyLocationKey;
+  List<ReportModel> _nearbyCaseReports = const [];
 
   @override
   void initState() {
@@ -113,8 +120,44 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
 
         final containingZones = _getZonesContainingUser(userLocation, zones);
 
-        if (containingZones.isEmpty) {
+        if (userLocation != null) {
+          _scheduleNearbyCaseCheck(userLocation);
+        }
+
+        if (containingZones.isEmpty && _nearbyCaseReports.isEmpty) {
           return const SizedBox.shrink();
+        }
+
+        if (containingZones.isEmpty && _nearbyCaseReports.isNotEmpty) {
+          final nearestDistanceKm = _nearestCaseDistanceKm(userLocation, _nearbyCaseReports);
+          final caseCount = _nearbyCaseReports.length;
+          return Material(
+            elevation: 3,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.orange.shade700, Colors.deepOrange.shade600],
+                ),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Có $caseCount ca bệnh trong bán kính 5km${nearestDistanceKm == null ? '' : ' (gần nhất ${nearestDistanceKm.toStringAsFixed(1)}km)'}',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
         }
 
         final highestRiskZone = containingZones.first;
@@ -253,6 +296,69 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
         );
       },
     );
+  }
+
+  Future<void> _scheduleNearbyCaseCheck(LatLng userLocation) async {
+    if (_isCheckingNearbyCases) return;
+
+    final locationKey =
+        '${userLocation.latitude.toStringAsFixed(3)}_${userLocation.longitude.toStringAsFixed(3)}';
+    final now = DateTime.now();
+    final recentlyChecked = _lastNearbyCaseCheckAt != null &&
+        now.difference(_lastNearbyCaseCheckAt!).inSeconds < 30;
+    if (recentlyChecked && locationKey == _lastNearbyLocationKey) return;
+
+    _isCheckingNearbyCases = true;
+    _lastNearbyLocationKey = locationKey;
+    _lastNearbyCaseCheckAt = now;
+    try {
+      final response = await ApiClient.instance.get(
+        ApiConstants.reportsNearby,
+        queryParameters: {
+          'lat': userLocation.latitude,
+          'lon': userLocation.longitude,
+          'radius': 5,
+        },
+      );
+      final raw = response.data;
+      final list = raw is List
+          ? raw
+          : raw is Map<String, dynamic>
+              ? (raw['data'] ?? raw['items'] ?? []) as List<dynamic>
+              : <dynamic>[];
+      final reports = list
+          .whereType<Map<String, dynamic>>()
+          .map(ReportModel.fromJson)
+          .where((r) => r.reportType == ReportType.caseReport)
+          .toList();
+      if (mounted) {
+        setState(() {
+          _nearbyCaseReports = reports;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _nearbyCaseReports = const [];
+        });
+      }
+    } finally {
+      _isCheckingNearbyCases = false;
+    }
+  }
+
+  double? _nearestCaseDistanceKm(LatLng? userLocation, List<ReportModel> reports) {
+    if (userLocation == null || reports.isEmpty) return null;
+    final distance = const Distance();
+    var minMeters = double.infinity;
+    for (final report in reports) {
+      final casePoint = LatLng(report.lat, report.lon);
+      final meters = distance.as(LengthUnit.Meter, userLocation, casePoint);
+      if (meters < minMeters) {
+        minMeters = meters;
+      }
+    }
+    return minMeters.isFinite ? minMeters / 1000 : null;
   }
 
   String _getWarningTitle(ZoneRiskLevel riskLevel) {

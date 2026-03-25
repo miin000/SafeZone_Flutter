@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
@@ -43,7 +45,6 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   final _workplaceController = TextEditingController();
   final _healthFacilityController = TextEditingController();
   final _travelHistoryController = TextEditingController();
-  final _contactHistoryController = TextEditingController();
 
   // Form state
   String? _selectedDiseaseType;
@@ -52,6 +53,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   bool _isHospitalized = false;
   final List<String> _selectedSymptoms = [];
   final List<String> _selectedConditions = [];
+  final List<_ContactPersonInput> _contactPersons = [];
 
   // Location state
   LatLng? _selectedCaseLocation;
@@ -141,7 +143,6 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
     _workplaceController.dispose();
     _healthFacilityController.dispose();
     _travelHistoryController.dispose();
-    _contactHistoryController.dispose();
     super.dispose();
   }
 
@@ -245,9 +246,6 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
     final isVerified = await VerificationRequiredDialog.show(context);
     if (!isVerified) return;
 
-    final otpConfirmed = await _confirmEmailOtpForSubmission();
-    if (!otpConfirmed) return;
-
     // Build patient info
     final patientInfo = PatientInfo(
       fullName: _patientNameController.text.trim(),
@@ -262,7 +260,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
       healthFacility: _healthFacilityController.text.trim(),
       isHospitalized: _isHospitalized,
       travelHistory: _travelHistoryController.text.trim(),
-      contactHistory: _contactHistoryController.text.trim(),
+        contactHistory: _buildContactHistoryPayload(),
       underlyingConditions: _selectedConditions.isNotEmpty
           ? _selectedConditions
           : null,
@@ -297,7 +295,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
             duration: Duration(seconds: 3),
           ),
         );
-        Navigator.of(context).pop(true);
+        Navigator.of(context).popUntil((route) => route.isFirst);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -309,93 +307,22 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
     }
   }
 
-  Future<bool> _confirmEmailOtpForSubmission() async {
-    final authProvider = context.read<AuthProvider>();
-    final email = authProvider.user?.email?.trim() ?? '';
-
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng cập nhật email trước khi gửi báo cáo.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return false;
-    }
-
-    final sent = await authProvider.sendEmailOtp();
-    if (!sent) {
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authProvider.error ?? 'Không gửi được OTP email.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return false;
-    }
-
-    if (!mounted) return false;
-
-    final otpController = TextEditingController();
-    var verified = false;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Xác nhận OTP email'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Nhập mã OTP đã gửi đến $email'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: otpController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Mã OTP',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Hủy'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final otp = otpController.text.trim();
-                if (otp.isEmpty) return;
-                final ok = await authProvider.verifyEmailOtp(otp);
-                if (ok && dialogContext.mounted) {
-                  verified = true;
-                  Navigator.of(dialogContext).pop();
-                }
-              },
-              child: const Text('Xác nhận'),
-            ),
-          ],
-        );
-      },
-    );
-
-    otpController.dispose();
-
-    if (!verified && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authProvider.error ?? 'Xác thực OTP thất bại.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-
-    return verified;
+  String? _buildContactHistoryPayload() {
+    if (_contactPersons.isEmpty) return null;
+    final contacts = _contactPersons
+        .where((c) => c.name.trim().isNotEmpty)
+        .map(
+          (c) => {
+            'name': c.name.trim(),
+            if (c.phone.trim().isNotEmpty) 'phone': c.phone.trim(),
+            if (c.relationship.trim().isNotEmpty)
+              'relationship': c.relationship.trim(),
+            if (c.address.trim().isNotEmpty) 'address': c.address.trim(),
+          },
+        )
+        .toList();
+    if (contacts.isEmpty) return null;
+    return jsonEncode(contacts);
   }
 
   @override
@@ -834,16 +761,97 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Contact history
-        TextFormField(
-          controller: _contactHistoryController,
-          decoration: InputDecoration(
-            labelText: 'Lịch sử tiếp xúc',
-            hintText: 'Những người đã tiếp xúc gần...',
-            prefixIcon: const Icon(Icons.group),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        // Contact persons (structured)
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Người tiếp xúc gần',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _contactPersons.add(_ContactPersonInput());
+                        });
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Thêm người'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_contactPersons.isEmpty)
+                  Text(
+                    'Chưa có người tiếp xúc nào được khai báo.',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  ),
+                ..._contactPersons.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final person = entry.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Text('Người ${idx + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _contactPersons.removeAt(idx);
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline, color: Colors.red),
+                              tooltip: 'Xóa người này',
+                            ),
+                          ],
+                        ),
+                        TextFormField(
+                          initialValue: person.name,
+                          decoration: const InputDecoration(labelText: 'Họ tên *', border: OutlineInputBorder()),
+                          onChanged: (v) => person.name = v,
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          initialValue: person.phone,
+                          decoration: const InputDecoration(labelText: 'Số điện thoại', border: OutlineInputBorder()),
+                          keyboardType: TextInputType.phone,
+                          onChanged: (v) => person.phone = v,
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          initialValue: person.relationship,
+                          decoration: const InputDecoration(labelText: 'Mối quan hệ', border: OutlineInputBorder()),
+                          onChanged: (v) => person.relationship = v,
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          initialValue: person.address,
+                          decoration: const InputDecoration(labelText: 'Địa chỉ liên hệ', border: OutlineInputBorder()),
+                          onChanged: (v) => person.address = v,
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
-          maxLines: 2,
         ),
       ],
     );
@@ -916,4 +924,11 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
       ],
     );
   }
+}
+
+class _ContactPersonInput {
+  String name = '';
+  String phone = '';
+  String relationship = '';
+  String address = '';
 }

@@ -419,18 +419,12 @@ class _ReportScreenState extends State<ReportScreen> {
                     },
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _ReportTypeCard(
-                    icon: Icons.warning_amber,
-                    title: 'Cảnh báo ổ dịch',
-                    description: 'Cụm nhiều ca nghi nhiễm',
-                    color: Colors.orange,
-                    isSelected: _reportType == 'outbreak_alert',
-                    onTap: () => setState(() => _reportType = 'outbreak_alert'),
-                  ),
-                ),
               ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tạm thời chỉ hỗ trợ báo cáo ca bệnh để đảm bảo độ chính xác nghiệp vụ.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ],
         ),
