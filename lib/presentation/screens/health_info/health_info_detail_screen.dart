@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:mobile_flutter/data/models/health_info_model.dart';
 import 'package:mobile_flutter/data/repositories/health_info_repository.dart';
 
@@ -48,6 +49,28 @@ class _HealthInfoDetailScreenState extends State<HealthInfoDetailScreen> {
         setState(() => _loading = false);
       }
     }
+  }
+
+  String _normalizeMarkdown(String value) {
+    var normalized = value
+        .replaceAll(r'\r\n', '\n')
+        .replaceAll(r'\n', '\n')
+        .replaceAll('\r\n', '\n');
+
+    // Some legacy content stores escaped markdown tokens like \# or \*.
+    // Unescape them so heading, list, and bold syntax render correctly.
+    final escapedMarkdownTokenCount = RegExp(
+      r'\\([#*`_\-+>\[\]])',
+    ).allMatches(normalized).length;
+
+    if (escapedMarkdownTokenCount >= 2) {
+      normalized = normalized.replaceAllMapped(
+        RegExp(r'\\([#*`_\-+>\[\]])'),
+        (match) => match.group(1)!,
+      );
+    }
+
+    return normalized;
   }
 
   @override
@@ -130,9 +153,21 @@ class _HealthInfoDetailScreenState extends State<HealthInfoDetailScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Text(
-              _data.content,
-              style: const TextStyle(fontSize: 16, height: 1.5),
+            MarkdownBody(
+              data: _normalizeMarkdown(_data.content),
+              selectable: true,
+              styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+                p: const TextStyle(fontSize: 16, height: 1.5),
+                h3: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  height: 1.4,
+                ),
+                listBullet: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade800,
+                ),
+              ),
             ),
             if (_loading)
               const Padding(
