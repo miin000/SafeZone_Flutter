@@ -189,6 +189,15 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
     );
   }
 
+  String _plainPreview(String input) {
+    return input
+        .replaceAll(RegExp(r'\r\n|\n|\r'), ' ')
+        .replaceAll(RegExp(r'(^|\s)#{1,6}\s*'), ' ')
+        .replaceAll(RegExp(r'[*_`~>-]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   Widget _buildHealthInfoCard(HealthInfo healthInfo) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -246,7 +255,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                     ),
                   ),
                 Text(
-                  healthInfo.title,
+                  _plainPreview(healthInfo.title),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -256,9 +265,11 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  healthInfo.summary?.trim().isNotEmpty == true
-                      ? healthInfo.summary!
-                      : healthInfo.content,
+                  _plainPreview(
+                    healthInfo.summary?.trim().isNotEmpty == true
+                        ? healthInfo.summary!
+                        : healthInfo.content,
+                  ),
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,

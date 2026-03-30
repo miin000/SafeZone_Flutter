@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_flutter/domain/entities/epidemic_zone.dart';
+import 'package:mobile_flutter/data/models/report_model.dart';
+import 'package:mobile_flutter/core/constants/api_constants.dart';
+import 'package:mobile_flutter/core/network/api_client.dart';
 import 'package:mobile_flutter/presentation/providers/location_provider.dart';
 import 'package:mobile_flutter/presentation/providers/statistics_provider.dart';
 import 'package:mobile_flutter/presentation/providers/zone_provider.dart';
@@ -15,6 +18,7 @@ class StatisticsTab extends StatefulWidget {
 class _StatisticsTabState extends State<StatisticsTab> {
   int _timelineDays = 7;
   DateTime? _lastNearbyStatsAt;
+  List<ReportModel> _nearbyCaseReports = const [];
 
   @override
   void initState() {
@@ -59,6 +63,40 @@ class _StatisticsTabState extends State<StatisticsTab> {
       longitude: position.longitude,
       radiusKm: 5,
     );
+
+    try {
+      final response = await ApiClient.instance.get(
+        ApiConstants.reportsNearby,
+        queryParameters: {
+          'lat': position.latitude,
+          'lon': position.longitude,
+          'radius': 5,
+        },
+      );
+      final raw = response.data;
+      final list = raw is List
+          ? raw
+          : raw is Map<String, dynamic>
+              ? (raw['data'] ?? raw['items'] ?? []) as List<dynamic>
+              : <dynamic>[];
+      final reports = list
+          .whereType<Map<String, dynamic>>()
+          .map(ReportModel.fromJson)
+          .where((r) => r.reportType == ReportType.caseReport)
+          .toList();
+      if (mounted) {
+        setState(() {
+          _nearbyCaseReports = reports;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _nearbyCaseReports = const [];
+        });
+      }
+    }
+
     _lastNearbyStatsAt = DateTime.now();
   }
 
@@ -214,7 +252,8 @@ class _StatisticsTabState extends State<StatisticsTab> {
     }
 
     final nearbyZones = zoneProvider.activeZones;
-    if (nearbyZones.isEmpty) {
+    final nearbyReports = _nearbyCaseReports;
+    if (nearbyZones.isEmpty && nearbyReports.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
@@ -223,14 +262,15 @@ class _StatisticsTabState extends State<StatisticsTab> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Colors.green.shade200),
         ),
-        child: const Text('Không phát hiện vùng dịch hoạt động trong bán kính 5km.'),
+        child: const Text('Không phát hiện vùng dịch hoặc ca bệnh hoạt động trong bán kính 5km.'),
       );
     }
 
     final highRiskCount = nearbyZones
         .where((z) => z.riskLevel == ZoneRiskLevel.high || z.riskLevel == ZoneRiskLevel.critical)
         .length;
-    final totalCases = nearbyZones.fold<int>(0, (sum, z) => sum + z.confirmedCases);
+    final zoneCases = nearbyZones.fold<int>(0, (sum, z) => sum + z.confirmedCases);
+    final nearbyCaseCount = nearbyReports.length;
     final sortedZones = [...nearbyZones]..sort((a, b) {
         final da = locationProvider.distanceTo(a.latitude, a.longitude) ?? double.infinity;
         final db = locationProvider.distanceTo(b.latitude, b.longitude) ?? double.infinity;
@@ -243,8 +283,8 @@ class _StatisticsTabState extends State<StatisticsTab> {
           children: [
             Expanded(
               child: _buildTrendCard(
-                label: 'Vùng dịch gần bạn',
-                value: nearbyZones.length.toString(),
+                label: 'Vùng/ca gần bạn',
+                value: '${nearbyZones.length}/${nearbyCaseCount}',
               ),
             ),
             const SizedBox(width: 8),
@@ -259,11 +299,27 @@ class _StatisticsTabState extends State<StatisticsTab> {
             Expanded(
               child: _buildTrendCard(
                 label: 'Tổng ca gần bạn',
-                value: totalCases.toString(),
+                value: (zoneCases + nearbyCaseCount).toString(),
               ),
             ),
           ],
         ),
+        if (nearbyCaseCount > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Text(
+              'Có $nearbyCaseCount ca bệnh đã xác nhận/chờ công bố trong bán kính 5km.',
+              style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         ...sortedZones.take(3).map((zone) {
           final distanceMeters = locationProvider.distanceTo(zone.latitude, zone.longitude);

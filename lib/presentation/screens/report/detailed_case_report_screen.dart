@@ -13,7 +13,7 @@ import '../../providers/location_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
-import 'verification_required_dialog.dart';
+import '../auth/verification_screen.dart';
 
 /// Screen for detailed case report with full patient information
 class DetailedCaseReportScreen extends StatefulWidget {
@@ -31,7 +31,6 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   // Basic info controllers
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
-  final _affectedCountController = TextEditingController(text: '1');
   final _latController = TextEditingController();
   final _lonController = TextEditingController();
 
@@ -51,6 +50,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   String? _selectedGender;
   DateTime? _symptomOnsetDate;
   bool _isHospitalized = false;
+  bool _reporterConsent = false;
   final List<String> _selectedSymptoms = [];
   final List<String> _selectedConditions = [];
   final List<_ContactPersonInput> _contactPersons = [];
@@ -131,7 +131,6 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   void dispose() {
     _descriptionController.dispose();
     _addressController.dispose();
-    _affectedCountController.dispose();
     _latController.dispose();
     _lonController.dispose();
     _patientNameController.dispose();
@@ -242,9 +241,18 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
       return;
     }
 
-    // Check verification status
-    final isVerified = await VerificationRequiredDialog.show(context);
-    if (!isVerified) return;
+    final otpConfirmed = await _confirmEmailOtpForSubmission();
+    if (!otpConfirmed) return;
+
+    if (!_reporterConsent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bạn cần đồng ý chia sẻ thông tin để gửi báo cáo chi tiết.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     // Build patient info
     final patientInfo = PatientInfo(
@@ -277,8 +285,10 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
           ? _addressController.text.trim()
           : null,
       symptoms: _selectedSymptoms.isNotEmpty ? _selectedSymptoms : null,
-      affectedCount: int.tryParse(_affectedCountController.text),
+      affectedCount: 1,
       isDetailedReport: true,
+      reporterConsent: _reporterConsent,
+      deviceId: context.read<AuthProvider>().user?.id,
       patientInfo: patientInfo,
     );
 
@@ -305,6 +315,51 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         );
       }
     }
+  }
+
+  Future<bool> _confirmEmailOtpForSubmission() async {
+    final authProvider = context.read<AuthProvider>();
+    await authProvider.fetchVerificationStatus();
+
+    // Already verified email should not require another OTP challenge.
+    if (authProvider.isEmailVerified) {
+      return true;
+    }
+
+    final email = authProvider.user?.email?.trim() ?? '';
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng cập nhật email trước khi gửi báo cáo.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return false;
+    }
+
+    if (!mounted) return false;
+
+    final verified = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const VerificationScreen(
+          type: VerificationType.email,
+          canSkip: false,
+        ),
+      ),
+    );
+
+    if (verified != true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.error ?? 'Xác thực OTP thất bại.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+
+    return true;
   }
 
   String? _buildContactHistoryPayload() {
@@ -477,15 +532,23 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Affected count
-        TextFormField(
-          controller: _affectedCountController,
-          decoration: InputDecoration(
-            labelText: 'Số người bị ảnh hưởng',
-            prefixIcon: const Icon(Icons.people),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        Card(
+          color: Colors.green.shade50,
+          child: const Padding(
+            padding: EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Icon(Icons.auto_awesome, color: Colors.green),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Số ca được tự động đặt là 1 cho mỗi báo cáo chi tiết ca bệnh.',
+                    style: TextStyle(fontSize: 13, color: Colors.green),
+                  ),
+                ),
+              ],
+            ),
           ),
-          keyboardType: TextInputType.number,
         ),
       ],
     );
@@ -895,13 +958,13 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         // Confirmation note
         Card(
           color: Colors.orange.shade50,
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.all(16),
             child: Column(
               children: [
-                Icon(Icons.warning_amber, color: Colors.orange, size: 32),
-                SizedBox(height: 8),
-                Text(
+                const Icon(Icons.warning_amber, color: Colors.orange, size: 32),
+                const SizedBox(height: 8),
+                const Text(
                   'Xác nhận thông tin',
                   style: TextStyle(
                     fontSize: 16,
@@ -909,13 +972,28 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                     color: Colors.orange,
                   ),
                 ),
-                SizedBox(height: 8),
-                Text(
+                const SizedBox(height: 8),
+                const Text(
                   'Báo cáo chi tiết ca bệnh sẽ được gửi đến cơ quan y tế để xác minh. '
                   'Vui lòng đảm bảo thông tin chính xác. '
                   'Cơ quan y tế có thể liên hệ để xác minh thêm nếu cần.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                CheckboxListTile(
+                  value: _reporterConsent,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (value) {
+                    setState(() {
+                      _reporterConsent = value ?? false;
+                    });
+                  },
+                  title: const Text(
+                    'Tôi đồng ý chia sẻ thông tin này với cơ quan y tế để phục vụ giám sát dịch bệnh.',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),

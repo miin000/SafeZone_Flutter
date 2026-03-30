@@ -10,7 +10,6 @@ import '../../providers/location_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
-import 'verification_required_dialog.dart';
 import '../auth/verification_screen.dart';
 import 'detailed_case_report_screen.dart';
 
@@ -27,7 +26,6 @@ class _ReportScreenState extends State<ReportScreen> {
   // Form controllers
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
-  final _affectedCountController = TextEditingController(text: '1');
   final _latController = TextEditingController();
   final _lonController = TextEditingController();
 
@@ -84,7 +82,6 @@ class _ReportScreenState extends State<ReportScreen> {
   void dispose() {
     _descriptionController.dispose();
     _addressController.dispose();
-    _affectedCountController.dispose();
     _latController.dispose();
     _lonController.dispose();
     super.dispose();
@@ -231,12 +228,6 @@ class _ReportScreenState extends State<ReportScreen> {
       return;
     }
 
-    // Check verification status before submitting
-    final isVerified = await VerificationRequiredDialog.show(context);
-    if (!isVerified) {
-      return; // User chose not to verify or cancelled
-    }
-
     final otpConfirmed = await _confirmEmailOtpForSubmission();
     if (!otpConfirmed) {
       return;
@@ -253,11 +244,12 @@ class _ReportScreenState extends State<ReportScreen> {
           ? _addressController.text.trim()
           : null,
       symptoms: _selectedSymptoms.isNotEmpty ? _selectedSymptoms : null,
-      affectedCount: int.tryParse(_affectedCountController.text),
+        affectedCount: _isOutbreakAlert ? 2 : 1,
       reportType: _reportType,
       severityLevel: _severityLevel,
       isSelfReport: _isSelfReport,
       reporterConsent: _reporterConsent,
+        deviceId: context.read<AuthProvider>().user?.id,
       hasContactWithPatient: _hasContactWithPatient,
       hasVisitedEpidemicArea: _hasVisitedEpidemicArea,
       hasSimilarCasesNearby: _hasSimilarCasesNearby,
@@ -293,6 +285,13 @@ class _ReportScreenState extends State<ReportScreen> {
 
   Future<bool> _confirmEmailOtpForSubmission() async {
     final authProvider = context.read<AuthProvider>();
+    await authProvider.fetchVerificationStatus();
+
+    // Already verified email should not require another OTP challenge.
+    if (authProvider.isEmailVerified) {
+      return true;
+    }
+
     final email = authProvider.user?.email?.trim() ?? '';
 
     if (email.isEmpty) {
@@ -333,7 +332,6 @@ class _ReportScreenState extends State<ReportScreen> {
     _formKey.currentState?.reset();
     _descriptionController.clear();
     _addressController.clear();
-    _affectedCountController.text = '1';
     _latController.clear();
     _lonController.clear();
     setState(() {
@@ -902,31 +900,25 @@ class _ReportScreenState extends State<ReportScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Affected count
-                      TextFormField(
-                        controller: _affectedCountController,
-                        decoration: InputDecoration(
-                          labelText: _isOutbreakAlert
-                              ? 'Số ca nghi nhiễm trong cụm *'
-                              : 'Số người bị ảnh hưởng',
-                          prefixIcon: const Icon(Icons.people),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      Card(
+                        color: Colors.green.shade50,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.auto_awesome, color: Colors.green),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _isOutbreakAlert
+                                      ? 'Số ca nghi nhiễm được tự động đặt tối thiểu là 2 cho báo cáo ổ dịch.'
+                                      : 'Số ca được tự động đặt là 1 cho mỗi báo cáo ca bệnh.',
+                                  style: const TextStyle(fontSize: 13, color: Colors.green),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value != null && value.isNotEmpty) {
-                            final count = int.tryParse(value);
-                            if (count == null || count < 1) {
-                              return 'Số người phải >= 1';
-                            }
-                            if (_isOutbreakAlert && count < 2) {
-                              return 'Cảnh báo ổ dịch cần ít nhất 2 ca nghi nhiễm';
-                            }
-                          }
-                          return null;
-                        },
                       ),
                       const SizedBox(height: 16),
 
