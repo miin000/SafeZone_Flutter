@@ -29,23 +29,39 @@ class NotificationModel {
     this.metadata,
   });
 
-  factory NotificationModel.fromJson(Map<String, dynamic> json) {
-    final createdAtRaw = json['createdAt'] as String?;
-    DateTime createdAt = DateTime.now();
+  static DateTime _parseServerDate(dynamic raw) {
+    if (raw == null) return DateTime.now();
 
-    if (createdAtRaw != null && createdAtRaw.isNotEmpty) {
-      try {
-        final hasTimezone =
-            createdAtRaw.endsWith('Z') ||
-            RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(createdAtRaw);
-        // Backend may return UTC without timezone suffix. Treat it as UTC to
-        // avoid showing stale offsets such as "7 giờ trước" for new items.
-        final normalized = hasTimezone ? createdAtRaw : '${createdAtRaw}Z';
-        createdAt = DateTime.parse(normalized).toLocal();
-      } catch (_) {
-        createdAt = DateTime.now();
+    final value = raw.toString().trim();
+    if (value.isEmpty) return DateTime.now();
+
+    final normalizedForParse = value.contains(' ')
+        ? value.replaceFirst(' ', 'T')
+        : value;
+    final hasTimezone =
+        normalizedForParse.endsWith('Z') ||
+        RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(normalizedForParse);
+
+    try {
+      if (hasTimezone) {
+        return DateTime.parse(normalizedForParse).toLocal();
       }
+
+      final localCandidate = DateTime.parse(normalizedForParse);
+      final utcCandidate = DateTime.parse('${normalizedForParse}Z').toLocal();
+      final now = DateTime.now();
+
+      final localDelta = now.difference(localCandidate).abs();
+      final utcDelta = now.difference(utcCandidate).abs();
+
+      return utcDelta <= localDelta ? utcCandidate : localCandidate;
+    } catch (_) {
+      return DateTime.now();
     }
+  }
+
+  factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    final createdAt = _parseServerDate(json['createdAt']);
 
     return NotificationModel(
       id: json['id'].toString(),

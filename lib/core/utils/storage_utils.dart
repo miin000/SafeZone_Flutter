@@ -1,5 +1,6 @@
 // Storage Utils
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math';
 
 class StorageUtils {
   StorageUtils._();
@@ -8,6 +9,7 @@ class StorageUtils {
   static const String _userIdKey = 'user_id';
   static const String _userEmailKey = 'user_email';
   static const String _userNameKey = 'user_name';
+  static const String _deviceIdKey = 'device_id';
 
   // Token management
   static Future<void> saveToken(String token) async {
@@ -63,5 +65,19 @@ class StorageUtils {
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
     return token != null && token.isNotEmpty;
+  }
+
+  static Future<String> getOrCreateDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString(_deviceIdKey);
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+
+    final rng = Random.secure();
+    final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
+    final id = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    await prefs.setString(_deviceIdKey, id);
+    return id;
   }
 }

@@ -77,8 +77,8 @@ class _StatisticsTabState extends State<StatisticsTab> {
       final list = raw is List
           ? raw
           : raw is Map<String, dynamic>
-              ? (raw['data'] ?? raw['items'] ?? []) as List<dynamic>
-              : <dynamic>[];
+          ? (raw['data'] ?? raw['items'] ?? []) as List<dynamic>
+          : <dynamic>[];
       final reports = list
           .whereType<Map<String, dynamic>>()
           .map(ReportModel.fromJson)
@@ -205,7 +205,8 @@ class _StatisticsTabState extends State<StatisticsTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              locationProvider.errorMessage ?? 'Cần quyền vị trí để hiển thị thống kê gần bạn.',
+              locationProvider.errorMessage ??
+                  'Cần quyền vị trí để hiển thị thống kê gần bạn.',
               style: TextStyle(color: Colors.orange.shade900),
             ),
             const SizedBox(height: 8),
@@ -238,7 +239,8 @@ class _StatisticsTabState extends State<StatisticsTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              zoneProvider.errorMessage ?? 'Không tải được dữ liệu vùng dịch gần bạn.',
+              zoneProvider.errorMessage ??
+                  'Không tải được dữ liệu vùng dịch gần bạn.',
               style: TextStyle(color: Colors.red.shade900),
             ),
             const SizedBox(height: 8),
@@ -262,18 +264,55 @@ class _StatisticsTabState extends State<StatisticsTab> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Colors.green.shade200),
         ),
-        child: const Text('Không phát hiện vùng dịch hoặc ca bệnh hoạt động trong bán kính 5km.'),
+        child: const Text(
+          'Không phát hiện vùng dịch hoặc ca bệnh hoạt động trong bán kính 5km.',
+        ),
       );
     }
 
     final highRiskCount = nearbyZones
-        .where((z) => z.riskLevel == ZoneRiskLevel.high || z.riskLevel == ZoneRiskLevel.critical)
+        .where(
+          (z) =>
+              z.riskLevel == ZoneRiskLevel.high ||
+              z.riskLevel == ZoneRiskLevel.critical,
+        )
         .length;
-    final zoneCases = nearbyZones.fold<int>(0, (sum, z) => sum + z.confirmedCases);
+    final zoneCases = nearbyZones.fold<int>(
+      0,
+      (sum, z) => sum + z.confirmedCases,
+    );
     final nearbyCaseCount = nearbyReports.length;
-    final sortedZones = [...nearbyZones]..sort((a, b) {
-        final da = locationProvider.distanceTo(a.latitude, a.longitude) ?? double.infinity;
-        final db = locationProvider.distanceTo(b.latitude, b.longitude) ?? double.infinity;
+    final pendingPublicationCount = nearbyReports
+        .where((r) => r.status == ReportStatus.pending)
+        .length;
+    final confirmedCaseCount = nearbyReports
+        .where(
+          (r) =>
+              r.status == ReportStatus.confirmed ||
+              r.status == ReportStatus.verified,
+        )
+        .length;
+
+    String nearbyCaseSummary;
+    if (pendingPublicationCount > 0 && confirmedCaseCount > 0) {
+      nearbyCaseSummary =
+          'Có $confirmedCaseCount ca đã xác nhận và $pendingPublicationCount ca chờ công bố trong bán kính 5km.';
+    } else if (pendingPublicationCount > 0) {
+      nearbyCaseSummary =
+          'Có $pendingPublicationCount ca bệnh chờ công bố trong bán kính 5km.';
+    } else {
+      nearbyCaseSummary =
+          'Có $nearbyCaseCount ca bệnh đã xác nhận trong bán kính 5km.';
+    }
+
+    final sortedZones = [...nearbyZones]
+      ..sort((a, b) {
+        final da =
+            locationProvider.distanceTo(a.latitude, a.longitude) ??
+            double.infinity;
+        final db =
+            locationProvider.distanceTo(b.latitude, b.longitude) ??
+            double.infinity;
         return da.compareTo(db);
       });
 
@@ -284,7 +323,7 @@ class _StatisticsTabState extends State<StatisticsTab> {
             Expanded(
               child: _buildTrendCard(
                 label: 'Vùng/ca gần bạn',
-                value: '${nearbyZones.length}/${nearbyCaseCount}',
+                value: '${nearbyZones.length}/$nearbyCaseCount',
               ),
             ),
             const SizedBox(width: 8),
@@ -315,15 +354,23 @@ class _StatisticsTabState extends State<StatisticsTab> {
               border: Border.all(color: Colors.orange.shade200),
             ),
             child: Text(
-              'Có $nearbyCaseCount ca bệnh đã xác nhận/chờ công bố trong bán kính 5km.',
-              style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.w600),
+              nearbyCaseSummary,
+              style: TextStyle(
+                color: Colors.orange.shade900,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
         const SizedBox(height: 12),
         ...sortedZones.take(3).map((zone) {
-          final distanceMeters = locationProvider.distanceTo(zone.latitude, zone.longitude);
-          final distanceKm = distanceMeters == null ? '-' : (distanceMeters / 1000).toStringAsFixed(1);
+          final distanceMeters = locationProvider.distanceTo(
+            zone.latitude,
+            zone.longitude,
+          );
+          final distanceKm = distanceMeters == null
+              ? '-'
+              : (distanceMeters / 1000).toStringAsFixed(1);
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Container(
@@ -340,11 +387,17 @@ class _StatisticsTabState extends State<StatisticsTab> {
                       children: [
                         Text(
                           zone.name,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
                           '${zone.diseaseName} - ${zone.riskLevel.displayName}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -406,10 +459,26 @@ class _StatisticsTabState extends State<StatisticsTab> {
       crossAxisSpacing: 8,
       childAspectRatio: 1.8,
       children: [
-        _buildSummaryCard(title: 'Tổng ca', value: stats.total.toString(), color: Colors.blue),
-        _buildSummaryCard(title: 'Xác nhận', value: '$confirmed', color: Colors.red),
-        _buildSummaryCard(title: 'Nghi ngờ', value: '$suspected', color: Colors.orange),
-        _buildSummaryCard(title: 'Đã khỏi', value: '$recovered', color: Colors.green),
+        _buildSummaryCard(
+          title: 'Tổng ca',
+          value: stats.total.toString(),
+          color: Colors.blue,
+        ),
+        _buildSummaryCard(
+          title: 'Xác nhận',
+          value: '$confirmed',
+          color: Colors.red,
+        ),
+        _buildSummaryCard(
+          title: 'Nghi ngờ',
+          value: '$suspected',
+          color: Colors.orange,
+        ),
+        _buildSummaryCard(
+          title: 'Đã khỏi',
+          value: '$recovered',
+          color: Colors.green,
+        ),
       ],
     );
   }
@@ -419,10 +488,7 @@ class _StatisticsTabState extends State<StatisticsTab> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-        ),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -468,7 +534,9 @@ class _StatisticsTabState extends State<StatisticsTab> {
       return const Text('Không có dữ liệu');
     }
 
-    final maxValue = entries.map((e) => e.value).fold<int>(0, (a, b) => a > b ? a : b);
+    final maxValue = entries
+        .map((e) => e.value)
+        .fold<int>(0, (a, b) => a > b ? a : b);
 
     return Column(
       children: entries.map((entry) {
@@ -485,13 +553,19 @@ class _StatisticsTabState extends State<StatisticsTab> {
                   Expanded(
                     child: Text(
                       entry.key,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Text(
                     entry.value.toString(),
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -526,10 +600,7 @@ class _StatisticsTabState extends State<StatisticsTab> {
       ),
       child: Column(
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 4),
           Text(
             value,
@@ -550,48 +621,50 @@ class _StatisticsTabState extends State<StatisticsTab> {
 
     return sorted
         .take(5)
-        .map((region) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            region.name,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            region.regionCode,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      region.count.toString(),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
+        .map(
+          (region) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
               ),
-            ))
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          region.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          region.regionCode,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    region.count.toString(),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )
         .toList();
   }
 
@@ -668,8 +741,10 @@ class _StatisticsTabState extends State<StatisticsTab> {
     final maxCount = sorted
         .map((point) => point.count as int)
         .fold<int>(1, (max, value) => value > max ? value : max);
-    final total = sorted
-        .fold<int>(0, (sum, point) => sum + (point.count as int));
+    final total = sorted.fold<int>(
+      0,
+      (sum, point) => sum + (point.count as int),
+    );
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -701,9 +776,13 @@ class _StatisticsTabState extends State<StatisticsTab> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: sorted.map((point) {
                 final rawDate = point.date.toString();
-                final shortDate = rawDate.length >= 10 ? rawDate.substring(5, 10) : rawDate;
+                final shortDate = rawDate.length >= 10
+                    ? rawDate.substring(5, 10)
+                    : rawDate;
                 final count = point.count as int;
-                final barHeight = maxCount == 0 ? 0.0 : (count / maxCount) * 130;
+                final barHeight = maxCount == 0
+                    ? 0.0
+                    : (count / maxCount) * 130;
 
                 return Expanded(
                   child: Padding(
@@ -713,7 +792,10 @@ class _StatisticsTabState extends State<StatisticsTab> {
                       children: [
                         Text(
                           '$count',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Container(
@@ -726,7 +808,10 @@ class _StatisticsTabState extends State<StatisticsTab> {
                         const SizedBox(height: 6),
                         Text(
                           shortDate,
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),

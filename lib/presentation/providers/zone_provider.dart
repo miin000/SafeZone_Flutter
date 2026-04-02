@@ -34,7 +34,8 @@ class ZoneProvider extends ChangeNotifier {
       _zones.where((z) => z.diseaseType == type).toList();
 
   // Active zones only
-  List<EpidemicZone> get activeZones => _zones.where((z) => z.isActive).toList();
+  List<EpidemicZone> get activeZones =>
+      _zones.where((z) => z.isActive && z.confirmedCases > 0).toList();
 
   /// Fetch all zones from API
   Future<void> fetchZones() async {
@@ -44,12 +45,12 @@ class ZoneProvider extends ChangeNotifier {
 
     try {
       final response = await ApiClient.instance.get(ApiConstants.zones);
-      
+
       if (response.statusCode == 200) {
         // API returns array directly or wrapped in 'data'
         final dynamic responseData = response.data;
         List<dynamic> data;
-        
+
         if (responseData is List) {
           data = responseData;
         } else if (responseData is Map && responseData['data'] != null) {
@@ -57,8 +58,10 @@ class ZoneProvider extends ChangeNotifier {
         } else {
           data = [];
         }
-        
-        _zones = data.map((json) => ZoneModel.fromJson(json as Map<String, dynamic>)).toList();
+
+        _zones = data
+            .map((json) => ZoneModel.fromJson(json as Map<String, dynamic>))
+            .toList();
         _status = ZoneStatus.loaded;
         debugPrint('Loaded ${_zones.length} zones from API');
       } else {
@@ -103,7 +106,7 @@ class ZoneProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final dynamic responseData = response.data;
         List<dynamic> data;
-        
+
         if (responseData is List) {
           data = responseData;
         } else if (responseData is Map && responseData['data'] != null) {
@@ -111,8 +114,10 @@ class ZoneProvider extends ChangeNotifier {
         } else {
           data = [];
         }
-        
-        _zones = data.map((json) => ZoneModel.fromJson(json as Map<String, dynamic>)).toList();
+
+        _zones = data
+            .map((json) => ZoneModel.fromJson(json as Map<String, dynamic>))
+            .toList();
         _status = ZoneStatus.loaded;
         debugPrint('Loaded ${_zones.length} nearby zones from API');
       } else {

@@ -28,6 +28,34 @@ class LocationProvider extends ChangeNotifier {
   // Default location (Hanoi, Vietnam)
   static const LatLng defaultLocation = LatLng(21.0285, 105.8542);
 
+  bool _isPositionFreshEnough(Position position, {int maxAgeMinutes = 3}) {
+    final age = DateTime.now().difference(position.timestamp);
+    return age.inMinutes <= maxAgeMinutes;
+  }
+
+  bool _isPositionAccurateEnough(Position position, {double maxMeters = 60}) {
+    return position.accuracy <= maxMeters;
+  }
+
+  Future<Position?> _waitForBetterPosition({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final stream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 0,
+      ),
+    );
+
+    try {
+      return await stream
+          .firstWhere((p) => _isPositionAccurateEnough(p, maxMeters: 50))
+          .timeout(timeout);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Check and request location permissions
   Future<bool> checkPermissions() async {
     bool serviceEnabled;
@@ -56,7 +84,8 @@ class LocationProvider extends ChangeNotifier {
 
     if (permission == LocationPermission.deniedForever) {
       _status = LocationStatus.denied;
-      _errorMessage = 'Quyền vị trí bị từ chối vĩnh viễn. Vui lòng cấp quyền trong Cài đặt.';
+      _errorMessage =
+          'Quyền vị trí bị từ chối vĩnh viễn. Vui lòng cấp quyền trong Cài đặt.';
       notifyListeners();
       return false;
     }
@@ -79,13 +108,25 @@ class LocationProvider extends ChangeNotifier {
 
       _currentPosition = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.bestForNavigation,
           timeLimit: Duration(seconds: 15),
         ),
       );
 
+      final current = _currentPosition;
+      if (current != null &&
+          (!_isPositionFreshEnough(current) ||
+              !_isPositionAccurateEnough(current))) {
+        final better = await _waitForBetterPosition();
+        if (better != null) {
+          _currentPosition = better;
+        }
+      }
+
       _status = LocationStatus.loaded;
-      debugPrint('Location: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
+      debugPrint(
+        'Location: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}',
+      );
     } catch (e) {
       _status = LocationStatus.error;
       _errorMessage = 'Không thể lấy vị trí: $e';
@@ -111,29 +152,28 @@ class LocationProvider extends ChangeNotifier {
       distanceFilter: 20, // Update every 20 meters
     );
 
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen(
-      (Position position) {
-        _currentPosition = position;
-        _status = LocationStatus.loaded;
-        notifyListeners();
-      },
-      onError: (error) {
-        debugPrint('Location tracking error: $error');
-        _errorMessage = 'Lỗi theo dõi vị trí: $error';
-        _status = _currentPosition != null
-            ? LocationStatus.loaded
-            : LocationStatus.error;
-        _retryTimer?.cancel();
-        _retryTimer = Timer(const Duration(seconds: 3), () {
-          if (_isTracking) {
-            startTracking();
-          }
-        });
-        notifyListeners();
-      },
-    );
+    _positionSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position position) {
+            _currentPosition = position;
+            _status = LocationStatus.loaded;
+            notifyListeners();
+          },
+          onError: (error) {
+            debugPrint('Location tracking error: $error');
+            _errorMessage = 'Lỗi theo dõi vị trí: $error';
+            _status = _currentPosition != null
+                ? LocationStatus.loaded
+                : LocationStatus.error;
+            _retryTimer?.cancel();
+            _retryTimer = Timer(const Duration(seconds: 3), () {
+              if (_isTracking) {
+                startTracking();
+              }
+            });
+            notifyListeners();
+          },
+        );
   }
 
   /// Stop tracking location

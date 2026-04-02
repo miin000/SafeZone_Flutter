@@ -26,6 +26,8 @@ class VerificationScreen extends StatefulWidget {
 
 class _VerificationScreenState extends State<VerificationScreen> {
   final TextEditingController _otpController = TextEditingController();
+  AuthProvider? _authProvider;
+  ScaffoldMessengerState? _scaffoldMessenger;
 
   bool _isOtpSent = false;
   bool _isLoading = false;
@@ -39,6 +41,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _sendOtp();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _authProvider ??= context.read<AuthProvider>();
+    _scaffoldMessenger ??= ScaffoldMessenger.maybeOf(context);
+  }
+
+  void _showSnack(SnackBar snackBar) {
+    if (!mounted) return;
+    _scaffoldMessenger?.showSnackBar(snackBar);
   }
 
   @override
@@ -61,9 +75,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
       : Icons.phone_outlined;
 
   Future<void> _sendOtp() async {
-    setState(() => _isLoading = true);
+    final authProvider = _authProvider;
+    if (authProvider == null || _isLoading) return;
 
-    final authProvider = context.read<AuthProvider>();
+    setState(() => _isLoading = true);
     bool success;
 
     if (widget.type == VerificationType.email) {
@@ -72,30 +87,29 @@ class _VerificationScreenState extends State<VerificationScreen> {
       success = await authProvider.sendPhoneOtp();
     }
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (mounted) {
-      if (success) {
-        setState(() => _isOtpSent = true);
-        _startResendCountdown();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.type == VerificationType.email
-                  ? 'Mã OTP đã được gửi đến email của bạn'
-                  : 'Mã OTP đã được gửi đến số điện thoại của bạn',
-            ),
-            backgroundColor: Colors.green,
+    if (success) {
+      setState(() => _isOtpSent = true);
+      _startResendCountdown();
+      _showSnack(
+        SnackBar(
+          content: Text(
+            widget.type == VerificationType.email
+                ? 'Mã OTP đã được gửi đến email của bạn'
+                : 'Mã OTP đã được gửi đến số điện thoại của bạn',
           ),
-        );
-      } else if (authProvider.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.error!),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else if (authProvider.error != null) {
+      _showSnack(
+        SnackBar(
+          content: Text(authProvider.error!),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -112,9 +126,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _verifyOtp() async {
+    if (_isLoading) return;
+    if (!mounted) return;
+
     final otp = _otpController.text.trim();
     if (otp.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      _showSnack(
         const SnackBar(
           content: Text('Vui lòng nhập đầy đủ mã OTP'),
           backgroundColor: Colors.orange,
@@ -123,9 +140,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    final authProvider = _authProvider;
+    if (authProvider == null) return;
 
-    final authProvider = context.read<AuthProvider>();
+    setState(() => _isLoading = true);
     bool success;
 
     if (widget.type == VerificationType.email) {
@@ -134,27 +152,20 @@ class _VerificationScreenState extends State<VerificationScreen> {
       success = await authProvider.verifyPhoneOtp(otp);
     }
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (mounted) {
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Xác thực thành công!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        widget.onVerified?.call();
-        Navigator.of(context).pop(true);
-      } else if (authProvider.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.error!),
-            backgroundColor: Colors.red,
-          ),
-        );
-        _otpController.clear();
-      }
+    if (success) {
+      widget.onVerified?.call();
+      Navigator.of(context).pop(true);
+    } else if (authProvider.error != null) {
+      _showSnack(
+        SnackBar(
+          content: Text(authProvider.error!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      _otpController.clear();
     }
   }
 

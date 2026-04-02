@@ -142,6 +142,38 @@ class ReportModel extends Equatable {
     this.reporterConsent = false,
   });
 
+  static DateTime _parseServerDate(dynamic raw) {
+    if (raw == null) return DateTime.now();
+    final value = raw.toString().trim();
+    if (value.isEmpty) return DateTime.now();
+
+    final normalizedForParse = value.contains(' ')
+        ? value.replaceFirst(' ', 'T')
+        : value;
+
+    final hasTimezone =
+        normalizedForParse.endsWith('Z') ||
+        RegExp(r'([+-]\d{2}:?\d{2})$').hasMatch(normalizedForParse);
+    try {
+      if (hasTimezone) {
+        return DateTime.parse(normalizedForParse).toLocal();
+      }
+
+      // Some endpoints return timezone-less UTC strings while others return
+      // timezone-less local strings. Pick the interpretation closer to "now"
+      // to avoid fixed offsets such as 7 hours.
+      final localCandidate = DateTime.parse(normalizedForParse);
+      final utcCandidate = DateTime.parse('${normalizedForParse}Z').toLocal();
+      final now = DateTime.now();
+      final localDelta = now.difference(localCandidate).abs();
+      final utcDelta = now.difference(utcCandidate).abs();
+
+      return utcDelta <= localDelta ? utcCandidate : localCandidate;
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
+
   factory ReportModel.fromJson(Map<String, dynamic> json) {
     // Parse location from GeoJSON Point format
     double lat = 0;
@@ -181,10 +213,10 @@ class ReportModel extends Equatable {
       user: json['user'] != null ? UserModel.fromJson(json['user']) : null,
       userId: json['userId'] ?? '',
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
+          ? _parseServerDate(json['createdAt'])
           : DateTime.now(),
       updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'])
+          ? _parseServerDate(json['updatedAt'])
           : DateTime.now(),
       reportType: _parseReportType(json['reportType']),
       severityLevel: _parseSeverity(json['severityLevel']),
@@ -262,7 +294,9 @@ class ReportModel extends Equatable {
       'verifiedAt': verifiedAt?.toIso8601String(),
       'verifiedBy': verifiedBy,
       'userId': userId,
-      'reportType': reportType == ReportType.outbreakAlert ? 'outbreak_alert' : 'case_report',
+      'reportType': reportType == ReportType.outbreakAlert
+          ? 'outbreak_alert'
+          : 'case_report',
       'severityLevel': severityLevel.name,
       'isDetailedReport': isDetailedReport,
       'isSelfReport': isSelfReport,
@@ -486,19 +520,28 @@ class CreateReportRequest {
       if (reporterPhone != null) 'reporterPhone': reporterPhone,
       'reporterConsent': reporterConsent,
       if (deviceId != null) 'deviceId': deviceId,
-      if (hasContactWithPatient != null) 'hasContactWithPatient': hasContactWithPatient,
-      if (hasVisitedEpidemicArea != null) 'hasVisitedEpidemicArea': hasVisitedEpidemicArea,
-      if (hasSimilarCasesNearby != null) 'hasSimilarCasesNearby': hasSimilarCasesNearby,
-      if (estimatedNearbyCount != null) 'estimatedNearbyCount': estimatedNearbyCount,
+      if (hasContactWithPatient != null)
+        'hasContactWithPatient': hasContactWithPatient,
+      if (hasVisitedEpidemicArea != null)
+        'hasVisitedEpidemicArea': hasVisitedEpidemicArea,
+      if (hasSimilarCasesNearby != null)
+        'hasSimilarCasesNearby': hasSimilarCasesNearby,
+      if (estimatedNearbyCount != null)
+        'estimatedNearbyCount': estimatedNearbyCount,
       if (hasVisitedDoctor != null) 'hasVisitedDoctor': hasVisitedDoctor,
       if (hasTestResult != null) 'hasTestResult': hasTestResult,
-      if (testResultDescription != null) 'testResultDescription': testResultDescription,
-      if (testResultImageUrls != null && testResultImageUrls!.isNotEmpty) 'testResultImageUrls': testResultImageUrls,
-      if (medicalCertImageUrls != null && medicalCertImageUrls!.isNotEmpty) 'medicalCertImageUrls': medicalCertImageUrls,
-      if (locationDescription != null) 'locationDescription': locationDescription,
+      if (testResultDescription != null)
+        'testResultDescription': testResultDescription,
+      if (testResultImageUrls != null && testResultImageUrls!.isNotEmpty)
+        'testResultImageUrls': testResultImageUrls,
+      if (medicalCertImageUrls != null && medicalCertImageUrls!.isNotEmpty)
+        'medicalCertImageUrls': medicalCertImageUrls,
+      if (locationDescription != null)
+        'locationDescription': locationDescription,
       if (locationType != null) 'locationType': locationType,
       if (suspectedDisease != null) 'suspectedDisease': suspectedDisease,
-      if (outbreakDescription != null) 'outbreakDescription': outbreakDescription,
+      if (outbreakDescription != null)
+        'outbreakDescription': outbreakDescription,
       if (discoveryTime != null) 'discoveryTime': discoveryTime,
     };
   }
@@ -549,13 +592,18 @@ class PatientInfo {
       if (idNumber != null && idNumber!.isNotEmpty) 'idNumber': idNumber,
       if (phone != null && phone!.isNotEmpty) 'phone': phone,
       if (address != null && address!.isNotEmpty) 'address': address,
-      if (occupation != null && occupation!.isNotEmpty) 'occupation': occupation,
+      if (occupation != null && occupation!.isNotEmpty)
+        'occupation': occupation,
       if (workplace != null && workplace!.isNotEmpty) 'workplace': workplace,
-      if (symptomOnsetDate != null) 'symptomOnsetDate': symptomOnsetDate!.toIso8601String(),
-      if (healthFacility != null && healthFacility!.isNotEmpty) 'healthFacility': healthFacility,
+      if (symptomOnsetDate != null)
+        'symptomOnsetDate': symptomOnsetDate!.toIso8601String(),
+      if (healthFacility != null && healthFacility!.isNotEmpty)
+        'healthFacility': healthFacility,
       'isHospitalized': isHospitalized,
-      if (travelHistory != null && travelHistory!.isNotEmpty) 'travelHistory': travelHistory,
-      if (contactHistory != null && contactHistory!.isNotEmpty) 'contactHistory': contactHistory,
+      if (travelHistory != null && travelHistory!.isNotEmpty)
+        'travelHistory': travelHistory,
+      if (contactHistory != null && contactHistory!.isNotEmpty)
+        'contactHistory': contactHistory,
       if (underlyingConditions != null && underlyingConditions!.isNotEmpty)
         'underlyingConditions': underlyingConditions,
     };

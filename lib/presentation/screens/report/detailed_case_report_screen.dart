@@ -8,6 +8,7 @@ import '../../../data/models/report_model.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/geocoding_service.dart';
+import '../../../core/utils/storage_utils.dart';
 import '../../providers/report_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/notification_provider.dart';
@@ -27,6 +28,7 @@ class DetailedCaseReportScreen extends StatefulWidget {
 class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 0;
+  bool _isSubmitting = false;
 
   // Basic info controllers
   final _descriptionController = TextEditingController();
@@ -60,6 +62,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   LatLng? _reporterLocation;
 
   List<String> _diseaseTypes = ['Dengue'];
+  int _addressLookupToken = 0;
 
   // Common symptoms
   final List<String> _availableSymptoms = [
@@ -178,16 +181,17 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   }
 
   Future<void> _fetchAndSetAddress(double lat, double lon) async {
+    final lookupToken = ++_addressLookupToken;
     try {
       final result = await GeocodingService.instance.reverseGeocode(lat, lon);
-      if (mounted && _addressController.text.isEmpty) {
+      if (mounted && lookupToken == _addressLookupToken) {
         setState(() {
           _addressController.text = result.formattedAddress;
         });
       }
     } catch (e) {
       // Silently fail - user can still enter address manually
-      print('Failed to fetch address: $e');
+      debugPrint('Failed to fetch address: $e');
     }
   }
 
@@ -208,133 +212,137 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   }
 
   Future<void> _submitReport() async {
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng điền đầy đủ thông tin bắt buộc'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    if (_isSubmitting) return;
 
-    if (_selectedDiseaseType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn loại bệnh'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    setState(() => _isSubmitting = true);
 
-    final lat = double.tryParse(_latController.text);
-    final lon = double.tryParse(_lonController.text);
+    try {
+      final provider = context.read<ReportProvider>();
+      final notificationProvider = context.read<NotificationProvider>();
 
-    if (lat == null || lon == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn vị trí ca bệnh'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    final otpConfirmed = await _confirmEmailOtpForSubmission();
-    if (!otpConfirmed) return;
-
-    if (!_reporterConsent) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bạn cần đồng ý chia sẻ thông tin để gửi báo cáo chi tiết.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Build patient info
-    final patientInfo = PatientInfo(
-      fullName: _patientNameController.text.trim(),
-      age: int.tryParse(_patientAgeController.text),
-      gender: _selectedGender,
-      idNumber: _patientIdController.text.trim(),
-      phone: _patientPhoneController.text.trim(),
-      address: _patientAddressController.text.trim(),
-      occupation: _occupationController.text.trim(),
-      workplace: _workplaceController.text.trim(),
-      symptomOnsetDate: _symptomOnsetDate,
-      healthFacility: _healthFacilityController.text.trim(),
-      isHospitalized: _isHospitalized,
-      travelHistory: _travelHistoryController.text.trim(),
-        contactHistory: _buildContactHistoryPayload(),
-      underlyingConditions: _selectedConditions.isNotEmpty
-          ? _selectedConditions
-          : null,
-    );
-
-    final request = CreateReportRequest(
-      diseaseType: _selectedDiseaseType!,
-      description: _descriptionController.text.trim(),
-      lat: lat,
-      lon: lon,
-      reporterLat: _reporterLocation?.latitude,
-      reporterLon: _reporterLocation?.longitude,
-      address: _addressController.text.trim().isNotEmpty
-          ? _addressController.text.trim()
-          : null,
-      symptoms: _selectedSymptoms.isNotEmpty ? _selectedSymptoms : null,
-      affectedCount: 1,
-      isDetailedReport: true,
-      reporterConsent: _reporterConsent,
-      deviceId: context.read<AuthProvider>().user?.id,
-      patientInfo: patientInfo,
-    );
-
-    final provider = context.read<ReportProvider>();
-    final success = await provider.createReport(request);
-
-    if (mounted) {
-      if (success) {
-        context.read<NotificationProvider>().loadNotifications();
+      if (!_formKey.currentState!.validate()) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Báo cáo chi tiết đã được gửi thành công!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(provider.error ?? 'Gửi báo cáo thất bại'),
+            content: Text('Vui lòng điền đầy đủ thông tin bắt buộc'),
             backgroundColor: Colors.red,
           ),
         );
+        return;
+      }
+
+      if (_selectedDiseaseType == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng chọn loại bệnh'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final lat = double.tryParse(_latController.text);
+      final lon = double.tryParse(_lonController.text);
+
+      if (lat == null || lon == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng chọn vị trí ca bệnh'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      if (!_reporterConsent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bạn cần đồng ý chia sẻ thông tin để gửi báo cáo chi tiết.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final otpConfirmed = await _confirmOtpForSubmission();
+      if (!otpConfirmed) return;
+
+      if (!mounted) return;
+
+      // Build patient info
+      final patientInfo = PatientInfo(
+        fullName: _patientNameController.text.trim(),
+        age: int.tryParse(_patientAgeController.text),
+        gender: _selectedGender,
+        idNumber: _patientIdController.text.trim(),
+        phone: _patientPhoneController.text.trim(),
+        address: _patientAddressController.text.trim(),
+        occupation: _occupationController.text.trim(),
+        workplace: _workplaceController.text.trim(),
+        symptomOnsetDate: _symptomOnsetDate,
+        healthFacility: _healthFacilityController.text.trim(),
+        isHospitalized: _isHospitalized,
+        travelHistory: _travelHistoryController.text.trim(),
+        contactHistory: _buildContactHistoryPayload(),
+        underlyingConditions: _selectedConditions.isNotEmpty
+            ? _selectedConditions
+            : null,
+      );
+
+      final request = CreateReportRequest(
+        diseaseType: _selectedDiseaseType!,
+        description: _descriptionController.text.trim(),
+        lat: lat,
+        lon: lon,
+        reporterLat: _reporterLocation?.latitude,
+        reporterLon: _reporterLocation?.longitude,
+        address: _addressController.text.trim().isNotEmpty
+            ? _addressController.text.trim()
+            : null,
+        symptoms: _selectedSymptoms.isNotEmpty ? _selectedSymptoms : null,
+        affectedCount: 1,
+        isDetailedReport: true,
+        reporterConsent: _reporterConsent,
+        deviceId: await StorageUtils.getOrCreateDeviceId(),
+        patientInfo: patientInfo,
+      );
+
+      final success = await provider.createReport(request);
+
+      if (mounted) {
+        if (success) {
+          notificationProvider.loadNotifications();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Báo cáo chi tiết đã được gửi thành công!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(provider.error ?? 'Gửi báo cáo thất bại'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
       }
     }
   }
 
-  Future<bool> _confirmEmailOtpForSubmission() async {
+  Future<bool> _confirmOtpForSubmission() async {
     final authProvider = context.read<AuthProvider>();
-    await authProvider.fetchVerificationStatus();
+    if (!mounted) return false;
 
-    // Already verified email should not require another OTP challenge.
-    if (authProvider.isEmailVerified) {
-      return true;
-    }
-
-    final email = authProvider.user?.email?.trim() ?? '';
-
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng cập nhật email trước khi gửi báo cáo.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+    final selectedType = await _pickOtpChannel(authProvider);
+    if (selectedType == null) {
       return false;
     }
 
@@ -342,15 +350,12 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
 
     final verified = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => const VerificationScreen(
-          type: VerificationType.email,
-          canSkip: false,
-        ),
+        builder: (_) => VerificationScreen(type: selectedType, canSkip: false),
       ),
     );
 
     if (verified != true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(
           content: Text(authProvider.error ?? 'Xác thực OTP thất bại.'),
           backgroundColor: Colors.red,
@@ -360,6 +365,59 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
     }
 
     return true;
+  }
+
+  Future<VerificationType?> _pickOtpChannel(AuthProvider authProvider) async {
+    final email = authProvider.user?.email?.trim() ?? '';
+    final phone = authProvider.user?.phone.trim() ?? '';
+
+    final canUseEmail = email.isNotEmpty;
+    final canUsePhone = phone.isNotEmpty;
+
+    if (!canUseEmail && !canUsePhone) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bạn cần xác minh email hoặc số điện thoại trước khi gửi báo cáo.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return null;
+    }
+
+    return showDialog<VerificationType>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Chọn phương thức xác minh'),
+          content: const Text(
+            'Vui lòng chọn kênh nhận OTP để xác minh trước khi gửi báo cáo.',
+          ),
+          actions: [
+            if (canUseEmail)
+              TextButton.icon(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(VerificationType.email),
+                icon: const Icon(Icons.email_outlined),
+                label: const Text('OTP qua Email'),
+              ),
+            if (canUsePhone)
+              TextButton.icon(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(VerificationType.phone),
+                icon: const Icon(Icons.phone_android),
+                label: const Text('OTP qua SĐT'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Hủy'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String? _buildContactHistoryPayload() {
@@ -409,13 +467,14 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                     }
                   },
                   controlsBuilder: (context, details) {
+                    final isBusy = provider.isLoading || _isSubmitting;
                     return Padding(
                       padding: const EdgeInsets.only(top: 16),
                       child: Row(
                         children: [
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: details.onStepContinue,
+                              onPressed: isBusy ? null : details.onStepContinue,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.deepOrange,
                                 foregroundColor: Colors.white,
@@ -428,7 +487,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                           if (_currentStep > 0) ...[
                             const SizedBox(width: 12),
                             TextButton(
-                              onPressed: details.onStepCancel,
+                              onPressed: isBusy ? null : details.onStepCancel,
                               child: const Text('Quay lại'),
                             ),
                           ],
@@ -474,7 +533,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                   ],
                 ),
               ),
-              if (provider.isLoading)
+              if (provider.isLoading || _isSubmitting)
                 Container(
                   color: Colors.black26,
                   child: const Center(child: CircularProgressIndicator()),
@@ -492,7 +551,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
       children: [
         // Disease type
         DropdownButtonFormField<String>(
-          value: _selectedDiseaseType,
+          initialValue: _selectedDiseaseType,
           decoration: InputDecoration(
             labelText: 'Loại bệnh *',
             prefixIcon: const Icon(Icons.coronavirus),
@@ -503,8 +562,9 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
           }).toList(),
           onChanged: (value) => setState(() => _selectedDiseaseType = value),
           validator: (value) {
-            if (value == null || value.isEmpty)
+            if (value == null || value.isEmpty) {
               return 'Vui lòng chọn loại bệnh';
+            }
             return null;
           },
         ),
@@ -608,7 +668,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: _selectedGender,
+                initialValue: _selectedGender,
                 decoration: InputDecoration(
                   labelText: 'Giới tính',
                   prefixIcon: const Icon(Icons.wc),
@@ -836,7 +896,10 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                     const Expanded(
                       child: Text(
                         'Người tiếp xúc gần',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     TextButton.icon(
@@ -871,7 +934,12 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                       children: [
                         Row(
                           children: [
-                            Text('Người ${idx + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                            Text(
+                              'Người ${idx + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                             const Spacer(),
                             IconButton(
                               onPressed: () {
@@ -879,33 +947,48 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
                                   _contactPersons.removeAt(idx);
                                 });
                               },
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
+                              ),
                               tooltip: 'Xóa người này',
                             ),
                           ],
                         ),
                         TextFormField(
                           initialValue: person.name,
-                          decoration: const InputDecoration(labelText: 'Họ tên *', border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: 'Họ tên *',
+                            border: OutlineInputBorder(),
+                          ),
                           onChanged: (v) => person.name = v,
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
                           initialValue: person.phone,
-                          decoration: const InputDecoration(labelText: 'Số điện thoại', border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: 'Số điện thoại',
+                            border: OutlineInputBorder(),
+                          ),
                           keyboardType: TextInputType.phone,
                           onChanged: (v) => person.phone = v,
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
                           initialValue: person.relationship,
-                          decoration: const InputDecoration(labelText: 'Mối quan hệ', border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: 'Mối quan hệ',
+                            border: OutlineInputBorder(),
+                          ),
                           onChanged: (v) => person.relationship = v,
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
                           initialValue: person.address,
-                          decoration: const InputDecoration(labelText: 'Địa chỉ liên hệ', border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: 'Địa chỉ liên hệ',
+                            border: OutlineInputBorder(),
+                          ),
                           onChanged: (v) => person.address = v,
                         ),
                       ],
