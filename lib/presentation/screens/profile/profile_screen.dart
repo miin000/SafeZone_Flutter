@@ -7,6 +7,7 @@ import 'package:mobile_flutter/presentation/screens/profile/edit_profile_screen.
 import 'package:mobile_flutter/presentation/screens/profile/my_reports_screen.dart';
 import 'package:mobile_flutter/presentation/screens/profile/my_posts_screen.dart';
 import 'package:mobile_flutter/presentation/screens/profile/settings_screen.dart';
+import 'package:mobile_flutter/presentation/screens/profile/help_center_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -44,6 +45,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Đăng xuất'),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showTermsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Điều khoản sử dụng'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Khi sử dụng SafeZone, bạn đồng ý cung cấp thông tin trung thực khi gửi báo cáo và tuân thủ hướng dẫn của cơ quan y tế. '
+            'Dữ liệu vị trí chỉ được dùng để cảnh báo nguy cơ dịch tễ và cải thiện khả năng ứng phó cộng đồng.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AboutDialog(
+        applicationName: 'SafeZone',
+        applicationVersion: '2.0.0',
+        applicationLegalese: 'SafeZone - Ho tro canh bao dich benh cong dong',
+        children: const [
+          SizedBox(height: 8),
+          Text('SafeZone giup theo doi vung dich, bao cao nhanh va nhan canh bao som theo vi tri hien tai.'),
         ],
       ),
     );
@@ -259,7 +296,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'Trung tâm trợ giúp',
                     subtitle: 'Câu hỏi thường gặp & hướng dẫn',
                     onTap: () {
-                      // TODO: Navigate to help center
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HelpCenterScreen(),
+                        ),
+                      );
                     },
                   ),
                   _MenuItem(
@@ -267,7 +309,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'Điều khoản sử dụng',
                     subtitle: 'Chính sách bảo mật & điều khoản',
                     onTap: () {
-                      // TODO: Show terms and conditions
+                      _showTermsDialog();
                     },
                   ),
                   _MenuItem(
@@ -275,7 +317,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'Về ứng dụng',
                     subtitle: 'Phiên bản 2.0.0 | SafeZone',
                     onTap: () {
-                      // TODO: Show about dialog
+                      _showAboutDialog();
                     },
                   ),
                 ],

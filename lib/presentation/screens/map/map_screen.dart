@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:mobile_flutter/core/constants/app_colors.dart';
 import 'package:mobile_flutter/core/constants/api_constants.dart';
 import 'package:mobile_flutter/core/network/api_client.dart';
@@ -197,8 +199,53 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) =>
-          _CaseDetailSheet(caseData: caseData, canViewSensitive: canViewSensitive),
+          _CaseDetailSheet(
+            caseData: caseData,
+            canViewSensitive: canViewSensitive,
+            onDirections: () => _openDirections(caseData.lat, caseData.lon),
+            onShare: () => _shareCase(caseData),
+          ),
     );
+  }
+
+  Future<void> _openDirections(double lat, double lon) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lon&travelmode=driving',
+    );
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể mở ứng dụng chỉ đường'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _shareZone(EpidemicZone zone) async {
+    final text = [
+      'Canh bao vung dich: ${zone.name}',
+      'Benh: ${zone.diseaseName}',
+      'Muc do: ${zone.riskLevel.displayName}',
+      'Toa do: ${zone.latitude.toStringAsFixed(6)}, ${zone.longitude.toStringAsFixed(6)}',
+      'Ban do: https://maps.google.com/?q=${zone.latitude},${zone.longitude}',
+    ].join('\n');
+
+    await Share.share(text, subject: 'SafeZone - Vung dich ${zone.name}');
+  }
+
+  Future<void> _shareCase(_MapCase caseData) async {
+    final text = [
+      'Thong tin ca benh SafeZone',
+      'Loai benh: ${caseData.diseaseType}',
+      'Trang thai: ${caseData.status}',
+      if (caseData.regionName?.isNotEmpty == true) 'Khu vuc: ${caseData.regionName}',
+      'Toa do: ${caseData.lat.toStringAsFixed(6)}, ${caseData.lon.toStringAsFixed(6)}',
+      'Ban do: https://maps.google.com/?q=${caseData.lat},${caseData.lon}',
+    ].join('\n');
+
+    await Share.share(text, subject: 'SafeZone - Ca benh ${caseData.diseaseType}');
   }
 
   void _centerOnUserLocation() {
@@ -255,7 +302,11 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _ZoneDetailSheet(zone: zone),
+      builder: (context) => _ZoneDetailSheet(
+        zone: zone,
+        onDirections: () => _openDirections(zone.latitude, zone.longitude),
+        onShare: () => _shareZone(zone),
+      ),
     );
   }
 
@@ -851,8 +902,14 @@ class _LegendItem extends StatelessWidget {
 // Zone detail bottom sheet
 class _ZoneDetailSheet extends StatelessWidget {
   final EpidemicZone zone;
+  final VoidCallback onDirections;
+  final VoidCallback onShare;
 
-  const _ZoneDetailSheet({required this.zone});
+  const _ZoneDetailSheet({
+    required this.zone,
+    required this.onDirections,
+    required this.onShare,
+  });
 
   Color _getRiskColor(ZoneRiskLevel level) {
     switch (level) {
@@ -1043,7 +1100,7 @@ class _ZoneDetailSheet extends StatelessWidget {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () {},
+                        onPressed: onDirections,
                         icon: const Icon(Icons.directions),
                         label: const Text('Chỉ đường'),
                       ),
@@ -1051,7 +1108,7 @@ class _ZoneDetailSheet extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () {},
+                        onPressed: onShare,
                         icon: const Icon(Icons.share),
                         label: const Text('Chia sẻ'),
                         style: ElevatedButton.styleFrom(
@@ -1167,10 +1224,14 @@ class _MapCase {
 class _CaseDetailSheet extends StatelessWidget {
   final _MapCase caseData;
   final bool canViewSensitive;
+  final VoidCallback onDirections;
+  final VoidCallback onShare;
 
   const _CaseDetailSheet({
     required this.caseData,
     required this.canViewSensitive,
+    required this.onDirections,
+    required this.onShare,
   });
 
   @override
@@ -1234,6 +1295,30 @@ class _CaseDetailSheet extends StatelessWidget {
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
             ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onDirections,
+                    icon: const Icon(Icons.directions),
+                    label: const Text('Chỉ đường'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: onShare,
+                    icon: const Icon(Icons.share),
+                    label: const Text('Chia sẻ'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

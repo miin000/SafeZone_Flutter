@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
+import '../../core/services/zone_alert_audio_service.dart';
 import '../../data/models/report_model.dart';
 import '../providers/zone_provider.dart';
 import '../providers/location_provider.dart';
@@ -43,6 +44,7 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
   @override
   void dispose() {
     _animationController.dispose();
+    ZoneAlertAudioService.instance.stop();
     super.dispose();
   }
 
@@ -129,6 +131,13 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
         }
 
         if (containingZones.isEmpty && _nearbyCaseReports.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ZoneAlertAudioService.instance.announceHighestRisk(
+              highestRisk: ZoneRiskLevel.medium,
+              zoneCount: _nearbyCaseReports.length,
+            );
+          });
+
           final nearestDistanceKm = _nearestCaseDistanceKm(userLocation, _nearbyCaseReports);
           final caseCount = _nearbyCaseReports.length;
           return Material(
@@ -162,6 +171,13 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
 
         final highestRiskZone = containingZones.first;
         final bannerColor = _getBannerColor(highestRiskZone.riskLevel);
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ZoneAlertAudioService.instance.announceHighestRisk(
+            highestRisk: highestRiskZone.riskLevel,
+            zoneCount: containingZones.length,
+          );
+        });
 
         return AnimatedBuilder(
           animation: _pulseAnimation,
