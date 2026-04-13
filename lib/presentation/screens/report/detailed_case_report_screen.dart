@@ -1,12 +1,16 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
 import '../../../data/models/report_model.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/cloudinary_upload_service.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/utils/storage_utils.dart';
 import '../../providers/report_provider.dart';
@@ -55,6 +59,9 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   bool _reporterConsent = false;
   final List<String> _selectedSymptoms = [];
   final List<String> _selectedConditions = [];
+  final ImagePicker _imagePicker = ImagePicker();
+  final List<XFile> _testResultImages = [];
+  final List<XFile> _medicalCertImages = [];
   final List<_ContactPersonInput> _contactPersons = [];
 
   // Location state
@@ -270,6 +277,19 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
 
       if (!mounted) return;
 
+      final testResultImageUrls = await CloudinaryUploadService.uploadImages(
+        files: _testResultImages,
+        folder: 'safezone/reports/detailed/test-result',
+      );
+      final medicalCertImageUrls = await CloudinaryUploadService.uploadImages(
+        files: _medicalCertImages,
+        folder: 'safezone/reports/detailed/medical-cert',
+      );
+
+      debugPrint(
+        '[DetailedReport] Uploaded testResult=${testResultImageUrls.length}, medicalCert=${medicalCertImageUrls.length}',
+      );
+
       // Build patient info
       final patientInfo = PatientInfo(
         fullName: _patientNameController.text.trim(),
@@ -305,6 +325,11 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         isDetailedReport: true,
         reporterConsent: _reporterConsent,
         deviceId: await StorageUtils.getOrCreateDeviceId(),
+        hasTestResult: testResultImageUrls.isNotEmpty,
+        testResultImageUrls:
+          testResultImageUrls.isNotEmpty ? testResultImageUrls : null,
+        medicalCertImageUrls:
+          medicalCertImageUrls.isNotEmpty ? medicalCertImageUrls : null,
         patientInfo: patientInfo,
       );
 
@@ -842,6 +867,38 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         ),
         const SizedBox(height: 16),
 
+        _buildEvidenceImageSection(
+          title: 'Ảnh kết quả xét nghiệm',
+          subtitle: 'Có thể bỏ trống nếu chưa có kết quả xét nghiệm.',
+          images: _testResultImages,
+          onPickGallery: () => _pickEvidenceImage(
+            target: _testResultImages,
+            source: ImageSource.gallery,
+          ),
+          onPickCamera: () => _pickEvidenceImage(
+            target: _testResultImages,
+            source: ImageSource.camera,
+          ),
+          onRemove: (index) => _removeEvidenceImage(_testResultImages, index),
+        ),
+        const SizedBox(height: 16),
+
+        _buildEvidenceImageSection(
+          title: 'Ảnh giấy tờ y tế',
+          subtitle: 'Ví dụ: giấy khám, phiếu chỉ định, đơn thuốc.',
+          images: _medicalCertImages,
+          onPickGallery: () => _pickEvidenceImage(
+            target: _medicalCertImages,
+            source: ImageSource.gallery,
+          ),
+          onPickCamera: () => _pickEvidenceImage(
+            target: _medicalCertImages,
+            source: ImageSource.camera,
+          ),
+          onRemove: (index) => _removeEvidenceImage(_medicalCertImages, index),
+        ),
+        const SizedBox(height: 16),
+
         // Health facility
         TextFormField(
           controller: _healthFacilityController,
@@ -1076,6 +1133,141 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _pickEvidenceImage({
+    required List<XFile> target,
+    required ImageSource source,
+  }) async {
+    if (target.length >= 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mỗi nhóm chỉ tối đa 4 ảnh')),
+      );
+      return;
+    }
+
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 95,
+    );
+    if (picked == null) return;
+
+    setState(() {
+      target.add(picked);
+    });
+  }
+
+  void _removeEvidenceImage(List<XFile> target, int index) {
+    setState(() {
+      target.removeAt(index);
+    });
+  }
+
+  Widget _buildEvidenceImageSection({
+    required String title,
+    required String subtitle,
+    required List<XFile> images,
+    required VoidCallback onPickGallery,
+    required VoidCallback onPickCamera,
+    required void Function(int index) onRemove,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.description_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${images.length}/4',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Hỗ trợ: jpg, jpeg, png, webp, heic, heif. Tối đa 5MB/ảnh.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...images.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final image = entry.value;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: kIsWeb
+                            ? Image.network(
+                                image.path,
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.file(
+                                File(image.path),
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: GestureDetector(
+                          onTap: () => onRemove(index),
+                          child: const CircleAvatar(
+                            radius: 10,
+                            backgroundColor: Colors.red,
+                            child: Icon(
+                              Icons.close,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+                OutlinedButton.icon(
+                  onPressed: onPickGallery,
+                  icon: const Icon(Icons.photo_library),
+                  label: const Text('Thư viện'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onPickCamera,
+                  icon: const Icon(Icons.photo_camera),
+                  label: const Text('Camera'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

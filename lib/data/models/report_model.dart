@@ -432,6 +432,7 @@ class CreateReportRequest {
   final String description;
   final double lat;
   final double lon;
+  final List<String>? imageUrls;
   final double? reporterLat;
   final double? reporterLon;
   final String? address;
@@ -470,6 +471,7 @@ class CreateReportRequest {
     required this.description,
     required this.lat,
     required this.lon,
+    this.imageUrls,
     this.reporterLat,
     this.reporterLon,
     this.address,
@@ -506,6 +508,7 @@ class CreateReportRequest {
       'description': description,
       'lat': lat,
       'lon': lon,
+      if (imageUrls != null && imageUrls!.isNotEmpty) 'imageUrls': imageUrls,
       if (reporterLat != null) 'reporterLat': reporterLat,
       if (reporterLon != null) 'reporterLon': reporterLon,
       if (address != null) 'address': address,

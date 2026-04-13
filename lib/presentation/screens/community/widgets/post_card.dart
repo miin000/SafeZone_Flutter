@@ -53,8 +53,11 @@ class _PostCardState extends State<PostCard> {
         post.author?.name ?? (post.authorName == 'Ẩn danh' ? fallbackName : post.authorName);
 
     return Card(
+      elevation: 1,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -112,40 +115,54 @@ class _PostCardState extends State<PostCard> {
             const SizedBox(height: 12),
 
             // Content
-            Text(
-              post.content,
-              style: const TextStyle(fontSize: 14),
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-            ),
+            Text(post.content, style: const TextStyle(fontSize: 16, height: 1.3)),
 
             // Images (if any)
             if (post.imageUrls.isNotEmpty) ...[
               const SizedBox(height: 12),
-              SizedBox(
-                height: 200,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: post.imageUrls.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        post.imageUrls[index],
-                        fit: BoxFit.cover,
-                        width: 200,
-                        errorBuilder: (_, __, ___) {
-                          return Container(
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.image_not_supported),
-                          );
-                        },
-                      ),
-                    );
-                  },
+              if (post.imageUrls.length == 1)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    post.imageUrls.first,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: 250,
+                    errorBuilder: (_, __, ___) {
+                      return Container(
+                        width: double.infinity,
+                        height: 220,
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.image_not_supported),
+                      );
+                    },
+                  ),
+                )
+              else
+                SizedBox(
+                  height: 200,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: post.imageUrls.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          post.imageUrls[index],
+                          fit: BoxFit.cover,
+                          width: 220,
+                          errorBuilder: (_, __, ___) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.image_not_supported),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
             ],
 
             const SizedBox(height: 12),
