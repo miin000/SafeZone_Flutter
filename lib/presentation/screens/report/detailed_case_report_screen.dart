@@ -313,14 +313,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
       if (mounted) {
         if (success) {
           notificationProvider.loadNotifications();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Báo cáo chi tiết đã được gửi thành công!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-          Navigator.of(context).popUntil((route) => route.isFirst);
+          Navigator.of(context).pop(true);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

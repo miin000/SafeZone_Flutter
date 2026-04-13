@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_flutter/data/models/report_model.dart';
 import 'package:mobile_flutter/presentation/providers/report_provider.dart';
+import 'package:mobile_flutter/presentation/screens/profile/report_detail_screen.dart';
 
 class MyReportsScreen extends StatefulWidget {
   const MyReportsScreen({super.key});
@@ -168,7 +169,12 @@ class _ReportCard extends StatelessWidget {
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () {
-                // TODO: View report details
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReportDetailScreen(reportId: report.id),
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 40),

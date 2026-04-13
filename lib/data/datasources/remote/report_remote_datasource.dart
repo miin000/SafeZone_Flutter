@@ -150,7 +150,12 @@ class ReportRemoteDatasourceImpl implements ReportRemoteDatasource {
     if (e.response != null) {
       final data = e.response!.data;
       if (data is Map && data['message'] != null) {
-        message = data['message'].toString();
+        final serverMessage = data['message'];
+        if (serverMessage is List) {
+          message = serverMessage.map((m) => m.toString()).join('\n');
+        } else {
+          message = serverMessage.toString();
+        }
       } else {
         switch (e.response!.statusCode) {
           case 400:
@@ -165,13 +170,17 @@ class ReportRemoteDatasourceImpl implements ReportRemoteDatasource {
           case 404:
             message = 'Không tìm thấy báo cáo';
             break;
+          case 429:
+            message = 'Bạn gửi quá nhanh. Vui lòng thử lại sau.';
+            break;
           case 500:
             message = 'Lỗi máy chủ';
             break;
         }
       }
     } else if (e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.sendTimeout) {
       message = 'Kết nối quá thời gian, vui lòng thử lại';
     } else if (e.type == DioExceptionType.connectionError) {
       message = 'Không thể kết nối đến máy chủ';

@@ -6,6 +6,17 @@ class ApiConstants {
   ApiConstants._();
 
   static String get baseUrl {
+    // Allow overriding API URL at build/run time:
+    // flutter run --dart-define=API_BASE_URL=http://192.168.1.10:3002/api/v1
+    // or: flutter run --dart-define=API_HOST=192.168.1.10
+    const explicitBaseUrl = String.fromEnvironment('API_BASE_URL');
+    if (explicitBaseUrl.isNotEmpty) return explicitBaseUrl;
+
+    const apiScheme = String.fromEnvironment('API_SCHEME', defaultValue: 'http');
+    const apiHost = String.fromEnvironment('API_HOST');
+    const apiPort = int.fromEnvironment('API_PORT', defaultValue: 3002);
+    if (apiHost.isNotEmpty) return '$apiScheme://$apiHost:$apiPort/api/v1';
+
     // Web should use the current host to avoid dart:io Platform checks
     if (kIsWeb) {
       final scheme = Uri.base.scheme; // http or https

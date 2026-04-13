@@ -10,6 +10,9 @@ import '../../providers/report_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/main_tab_provider.dart';
+import 'package:mobile_flutter/core/navigation/app_navigator.dart';
+import 'package:mobile_flutter/presentation/screens/profile/my_reports_screen.dart';
 import 'location_picker_widget.dart';
 import '../auth/verification_screen.dart';
 import 'detailed_case_report_screen.dart';
@@ -282,17 +285,9 @@ class _ReportScreenState extends State<ReportScreen> {
       if (mounted) {
         if (success) {
           notificationProvider.loadNotifications();
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Gửi báo cáo thành công! Kiểm tra tab Thông báo để theo dõi.',
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
           _resetForm();
+
+          await _showSubmitSuccessAndGoToHistory();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -306,6 +301,41 @@ class _ReportScreenState extends State<ReportScreen> {
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
+    }
+  }
+
+  Future<void> _showSubmitSuccessAndGoToHistory() async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Gửi báo cáo thành công'),
+          content: const Text(
+            'Báo cáo của bạn đã được gửi. Bạn có thể theo dõi trạng thái trong Lịch sử báo cáo.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Xem lịch sử báo cáo'),
+            ),
+          ],
+        );
+      },
+    );
+
+    final rootContext = AppNavigator.context;
+    (rootContext ?? context).read<MainTabProvider>().setIndex(4);
+
+    final nav = AppNavigator.state;
+    if (nav != null) {
+      nav.push(MaterialPageRoute(builder: (_) => const MyReportsScreen()));
+    } else if (mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const MyReportsScreen()),
+      );
     }
   }
 
@@ -477,6 +507,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       );
                       if (result == true) {
                         _resetForm();
+                        await _showSubmitSuccessAndGoToHistory();
                       }
                     },
                   ),

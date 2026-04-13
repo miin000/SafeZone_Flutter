@@ -47,6 +47,7 @@ class _PostCardState extends State<PostCard> {
     final isHelpfulSelected = currentReaction == 'helpful';
     final isNotHelpfulSelected = currentReaction == 'not_helpful';
     final isMyPost = currentUserId != null && currentUserId == post.authorId;
+    final canReact = post.status == PostStatus.approved;
     final fallbackName = isMyPost ? 'Bạn' : 'Ẩn danh';
     final displayAuthorName =
         post.author?.name ?? (post.authorName == 'Ẩn danh' ? fallbackName : post.authorName);
@@ -220,7 +221,8 @@ class _PostCardState extends State<PostCard> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _reacting ? null : () => _react('helpful'),
+                    onPressed:
+                        (!canReact || _reacting) ? null : () => _react('helpful'),
                     icon: Icon(
                       isHelpfulSelected ? Icons.thumb_up : Icons.thumb_up_alt_outlined,
                       size: 16,
@@ -235,7 +237,9 @@ class _PostCardState extends State<PostCard> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _reacting ? null : () => _react('not_helpful'),
+                    onPressed: (!canReact || _reacting)
+                        ? null
+                        : () => _react('not_helpful'),
                     icon: Icon(
                       isNotHelpfulSelected ? Icons.thumb_down : Icons.thumb_down_alt_outlined,
                       size: 16,

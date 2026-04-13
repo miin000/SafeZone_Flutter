@@ -22,6 +22,8 @@ import 'package:mobile_flutter/presentation/providers/notification_provider.dart
 import 'package:mobile_flutter/presentation/providers/statistics_provider.dart';
 import 'package:mobile_flutter/presentation/providers/health_info_provider.dart';
 import 'package:mobile_flutter/data/models/settings_model.dart';
+import 'package:mobile_flutter/presentation/providers/main_tab_provider.dart';
+import 'package:mobile_flutter/core/navigation/app_navigator.dart';
 
 // Widgets
 import 'package:mobile_flutter/presentation/widgets/zone_warning_banner.dart';
@@ -53,6 +55,7 @@ class SafeZoneApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ZoneProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => MainTabProvider()),
         ChangeNotifierProvider(
           create: (_) {
             final provider = SettingsProvider();
@@ -92,6 +95,7 @@ class SafeZoneApp extends StatelessWidget {
           return MaterialApp(
             title: 'SafeZone',
             debugShowCheckedModeBanner: false,
+            navigatorKey: AppNavigator.navigatorKey,
             themeMode: _themeMode(settingsProvider.theme),
             theme: baseTheme,
             darkTheme: darkTheme,
@@ -172,8 +176,6 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
-  int _currentIndex = 0;
-
   final List<Widget> _screens = const [
     HomeScreen(),
     MapScreen(),
@@ -208,21 +210,20 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final tabProvider = context.watch<MainTabProvider>();
     return Scaffold(
       body: Column(
         children: [
           // Zone warning banner - shows when user is in epidemic zone
           const ZoneWarningBanner(),
           // Main content
-          Expanded(child: _screens[_currentIndex]),
+          Expanded(child: _screens[tabProvider.currentIndex]),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: tabProvider.currentIndex,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          context.read<MainTabProvider>().setIndex(index);
         },
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue,
