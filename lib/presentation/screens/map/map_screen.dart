@@ -24,6 +24,8 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   final MapController _mapController = MapController();
   final Distance _distance = const Distance();
   bool _showLegend = true;
+  /// Selected disease filter key (normalized, e.g. "dengue", "hfmd").
+  /// When null, show all.
   String? _selectedDiseaseFilter;
   bool _casesLoading = false;
   List<_MapCase> _cases = [];
@@ -310,12 +312,55 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     );
   }
 
+  String _normalizeDiseaseKey(String? value) {
+    final normalized = (value ?? '').trim().toLowerCase();
+    if (normalized.isEmpty) return '';
+    if (normalized == 'unknown') return '';
+    return normalized;
+  }
+
+  String _diseaseLabelForKey(String key) {
+    switch (key) {
+      case 'covid19':
+      case 'covid-19':
+      case 'covid':
+        return 'COVID-19';
+      case 'dengue':
+      case 'sxh':
+        return 'Sốt xuất huyết';
+      case 'influenza':
+      case 'flu':
+        return 'Cúm';
+      case 'hfmd':
+      case 'handfootmouth':
+      case 'hand_foot_mouth':
+        return 'Tay chân miệng';
+      case 'cholera':
+        return 'Tả';
+      case 'other':
+        return 'Khác';
+      default:
+        return key;
+    }
+  }
+
+  List<_MapCase> _getFilteredCases() {
+    final filterKey = _selectedDiseaseFilter;
+    if (filterKey == null) return _cases;
+
+    return _cases
+        .where(
+          (c) => _normalizeDiseaseKey(c.diseaseType) == filterKey,
+        )
+        .toList();
+  }
+
   List<EpidemicZone> _getFilteredZones(ZoneProvider zoneProvider) {
     if (_selectedDiseaseFilter == null) {
       return zoneProvider.activeZones;
     }
     return zoneProvider.activeZones
-        .where((z) => z.diseaseName == _selectedDiseaseFilter)
+        .where((z) => _normalizeDiseaseKey(z.diseaseName) == _selectedDiseaseFilter)
         .toList();
   }
 
@@ -326,17 +371,21 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         builder: (context, locationProvider, zoneProvider, child) {
           final userLocation = locationProvider.currentLatLng;
           final zones = _getFilteredZones(zoneProvider);
+          final filteredCases = _getFilteredCases();
           final userDangerRisk = userLocation != null
             ? _getUserDangerRisk(userLocation, zoneProvider.activeZones)
             : null;
           final userInsideDangerZone = userLocation != null &&
               _isUserInsideAnyZone(userLocation, zoneProvider.activeZones);
           _syncDangerPulse(userDangerRisk);
-          final diseaseFilters = zoneProvider.activeZones
-              .map((z) => z.diseaseName)
-              .where((name) => name.trim().isNotEmpty)
-              .toSet()
-              .toList()
+          final diseaseFilters = {
+            ...zoneProvider.activeZones
+                .map((z) => _normalizeDiseaseKey(z.diseaseName))
+                .where((k) => k.isNotEmpty),
+            ..._cases
+                .map((c) => _normalizeDiseaseKey(c.diseaseType))
+                .where((k) => k.isNotEmpty),
+          }.toList()
             ..sort();
           final warningColor = userDangerRisk != null
             ? _getRiskColor(userDangerRisk)
@@ -377,7 +426,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   // Zone markers
                   MarkerLayer(
                     markers: [
-                      ..._cases.map((caseData) {
+                      ...filteredCases.map((caseData) {
                         return Marker(
                           point: LatLng(caseData.lat, caseData.lon),
                           width: 26,
@@ -562,16 +611,12 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                               },
                             ),
                             ...diseaseFilters.map((diseaseName) {
-                              final sampleZone = zoneProvider.activeZones.firstWhere(
-                                (z) => z.diseaseName == diseaseName,
-                              );
                               return _FilterChip(
-                                label: diseaseName,
+                                label: _diseaseLabelForKey(diseaseName),
                                 isSelected: _selectedDiseaseFilter == diseaseName,
                                 onSelected: () {
                                   setState(() => _selectedDiseaseFilter = diseaseName);
                                 },
-                                icon: _getDiseaseIcon(sampleZone.diseaseType),
                               );
                             }),
                           ],
@@ -667,7 +712,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
                       const SizedBox(width: 8),
                       Text(
-                        '${zones.length} vùng dịch • ${_cases.length} ca bệnh',
+                        '${zones.length} vùng dịch • ${filteredCases.length} ca bệnh',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -757,13 +802,11 @@ class _FilterChip extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onSelected;
-  final IconData? icon;
 
   const _FilterChip({
     required this.label,
     required this.isSelected,
     required this.onSelected,
-    this.icon,
   });
 
   @override
@@ -771,16 +814,7 @@ class _FilterChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: FilterChip(
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16),
-              const SizedBox(width: 4),
-            ],
-            Text(label),
-          ],
-        ),
+        label: Text(label),
         selected: isSelected,
         onSelected: (_) => onSelected(),
         selectedColor: Colors.blue.shade100,
@@ -1008,7 +1042,7 @@ class _ZoneDetailSheet extends StatelessWidget {
                 _InfoRow(
                   icon: Icons.coronavirus,
                   label: 'Loại bệnh',
-                  value: zone.diseaseType.displayName,
+                  value: zone.diseaseName,
                 ),
 
                 // Description
@@ -1025,51 +1059,21 @@ class _ZoneDetailSheet extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                // Statistics
+                // Statistics (API currently exposes zone-level total caseCount only)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Column(
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StatItem(
-                              label: 'Ca nhiễm',
-                              value: zone.confirmedCases.toString(),
-                              color: Colors.orange,
-                            ),
-                          ),
-                          Expanded(
-                            child: _StatItem(
-                              label: 'Đang điều trị',
-                              value: zone.activeCases.toString(),
-                              color: Colors.red,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StatItem(
-                              label: 'Đã hồi phục',
-                              value: zone.recoveredCases.toString(),
-                              color: Colors.green,
-                            ),
-                          ),
-                          Expanded(
-                            child: _StatItem(
-                              label: 'Tử vong',
-                              value: zone.deaths.toString(),
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        ],
+                      Expanded(
+                        child: _StatItem(
+                          label: 'Tổng ca trong vùng',
+                          value: zone.confirmedCases.toString(),
+                          color: Colors.orange,
+                        ),
                       ),
                     ],
                   ),
@@ -1234,8 +1238,65 @@ class _CaseDetailSheet extends StatelessWidget {
     required this.onShare,
   });
 
+  String _statusLabel(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'confirmed':
+        return 'Xác nhận';
+      case 'probable':
+        return 'Có thể';
+      case 'suspected':
+        return 'Nghi ngờ';
+      case 'under treatment':
+        return 'Đang điều trị';
+      case 'under observation':
+        return 'Theo dõi';
+      case 'recovered':
+        return 'Hồi phục';
+      case 'deceased':
+      case 'died':
+        return 'Tử vong';
+      default:
+        return status.isNotEmpty ? status : 'Không rõ';
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'confirmed':
+        return Colors.red.shade700;
+      case 'probable':
+        return Colors.deepOrange;
+      case 'suspected':
+        return Colors.orange;
+      case 'under treatment':
+        return Colors.blue;
+      case 'under observation':
+        return Colors.cyan.shade700;
+      case 'recovered':
+        return Colors.green;
+      case 'deceased':
+      case 'died':
+        return Colors.black87;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatReportedTime(String? iso) {
+    if (iso == null || iso.trim().isEmpty) return 'Không rõ';
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      String two(int v) => v.toString().padLeft(2, '0');
+      return '${two(dt.hour)}:${two(dt.minute)} ${two(dt.day)}/${two(dt.month)}/${dt.year}';
+    } catch (_) {
+      return iso;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final statusLabel = _statusLabel(caseData.status);
+    final statusColor = _statusColor(caseData.status);
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -1258,22 +1319,69 @@ class _CaseDetailSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            Text(
-              canViewSensitive
-                  ? 'Ca bệnh ${caseData.id.isEmpty ? '' : '#${caseData.id}'}'
-                  : 'Thông tin ca bệnh',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        canViewSensitive
+                            ? 'Ca bệnh ${caseData.id.isEmpty ? '' : '#${caseData.id}'}'
+                            : 'Thông tin ca bệnh',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        caseData.diseaseType,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Text('Loại bệnh: ${caseData.diseaseType}'),
-            const SizedBox(height: 6),
-            Text('Trạng thái: ${caseData.status}'),
-            const SizedBox(height: 6),
+            const SizedBox(height: 12),
             Text('Khu vực: ${caseData.regionName ?? 'Không rõ'}'),
             const SizedBox(height: 6),
-            Text(
-              'Thời gian báo cáo: ${caseData.reportedTime ?? 'Không rõ'}',
-            ),
+            Text('Thời gian báo cáo: ${_formatReportedTime(caseData.reportedTime)}'),
             if (canViewSensitive) ...[
               const SizedBox(height: 6),
               Text('Bệnh nhân: ${caseData.patientName?.isNotEmpty == true ? caseData.patientName : 'Ẩn danh'}'),

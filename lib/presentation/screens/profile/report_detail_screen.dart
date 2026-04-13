@@ -53,6 +53,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                           const SizedBox(height: 12),
                           _DetailCard(report: report),
                           const SizedBox(height: 12),
+                          _EvidenceCard(report: report),
+                          const SizedBox(height: 12),
                           _TimelineCard(report: report),
                         ],
                       ),
@@ -80,7 +82,7 @@ class _HeaderCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _statusColor(report.status).withOpacity(0.1),
+                    color: _statusColor(report.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -192,6 +194,113 @@ class _DetailCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _EvidenceCard extends StatelessWidget {
+  final ReportModel report;
+
+  const _EvidenceCard({required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    final evidenceUrls = report.imageUrls;
+    final testResultUrls = report.testResultImageUrls ?? const <String>[];
+    final medicalCertUrls = report.medicalCertImageUrls ?? const <String>[];
+
+    final hasAny =
+        evidenceUrls.isNotEmpty ||
+        testResultUrls.isNotEmpty ||
+        medicalCertUrls.isNotEmpty;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ảnh đính kèm',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            if (!hasAny)
+              Text(
+                'Không có ảnh đính kèm.',
+                style: TextStyle(color: Colors.grey.shade700),
+              )
+            else ...[
+              _buildGroup('Minh chứng', evidenceUrls),
+              _buildGroup('Kết quả xét nghiệm', testResultUrls),
+              _buildGroup('Giấy tờ y tế', medicalCertUrls),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroup(String title, List<String> urls) {
+    if (urls.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: urls.map(_thumb).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _thumb(String url) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.network(
+        url,
+        width: 72,
+        height: 72,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) {
+          return Container(
+            width: 72,
+            height: 72,
+            color: Colors.grey.shade200,
+            alignment: Alignment.center,
+            child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600),
+          );
+        },
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return Container(
+            width: 72,
+            height: 72,
+            color: Colors.grey.shade100,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: progress.expectedTotalBytes != null
+                    ? progress.cumulativeBytesLoaded /
+                        (progress.expectedTotalBytes ?? 1)
+                    : null,
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

@@ -43,6 +43,8 @@ class _ReportScreenState extends State<ReportScreen> {
   final List<String> _selectedSymptoms = [];
   final ImagePicker _imagePicker = ImagePicker();
   final List<XFile> _selectedEvidenceImages = [];
+  final List<XFile> _selectedTestResultImages = [];
+  final List<XFile> _selectedMedicalCertImages = [];
   String _reportType = 'case_report'; // 'case_report' or 'outbreak_alert'
   String _severityLevel = 'medium';
   bool _isSelfReport = true;
@@ -266,11 +268,19 @@ class _ReportScreenState extends State<ReportScreen> {
       final deviceId = await StorageUtils.getOrCreateDeviceId();
       final uploadedEvidenceUrls = await CloudinaryUploadService.uploadImages(
         files: _selectedEvidenceImages,
-        folder: 'safezone/reports/quick',
+        folder: 'safezone/reports/quick/evidence',
+      );
+      final uploadedTestResultUrls = await CloudinaryUploadService.uploadImages(
+        files: _selectedTestResultImages,
+        folder: 'safezone/reports/quick/test-result',
+      );
+      final uploadedMedicalCertUrls = await CloudinaryUploadService.uploadImages(
+        files: _selectedMedicalCertImages,
+        folder: 'safezone/reports/quick/medical-cert',
       );
 
       debugPrint(
-        '[QuickReport] Uploaded ${uploadedEvidenceUrls.length} evidence images',
+        '[QuickReport] Uploaded evidence=${uploadedEvidenceUrls.length}, testResult=${uploadedTestResultUrls.length}, medicalCert=${uploadedMedicalCertUrls.length}',
       );
 
       final request = CreateReportRequest(
@@ -294,6 +304,11 @@ class _ReportScreenState extends State<ReportScreen> {
         hasContactWithPatient: _hasContactWithPatient,
         hasVisitedEpidemicArea: _hasVisitedEpidemicArea,
         hasSimilarCasesNearby: _hasSimilarCasesNearby,
+        hasTestResult: uploadedTestResultUrls.isNotEmpty,
+        testResultImageUrls:
+          uploadedTestResultUrls.isNotEmpty ? uploadedTestResultUrls : null,
+        medicalCertImageUrls:
+          uploadedMedicalCertUrls.isNotEmpty ? uploadedMedicalCertUrls : null,
       );
 
       final success = await reportProvider.createReport(request);
@@ -448,6 +463,8 @@ class _ReportScreenState extends State<ReportScreen> {
       _selectedDiseaseType = null;
       _selectedSymptoms.clear();
       _selectedEvidenceImages.clear();
+      _selectedTestResultImages.clear();
+      _selectedMedicalCertImages.clear();
       _selectedCaseLocation = null;
       _reportType = 'case_report';
       _severityLevel = 'medium';
@@ -459,10 +476,13 @@ class _ReportScreenState extends State<ReportScreen> {
     });
   }
 
-  Future<void> _pickEvidenceImage(ImageSource source) async {
-    if (_selectedEvidenceImages.length >= 4) {
+  Future<void> _pickEvidenceImage({
+    required List<XFile> target,
+    required ImageSource source,
+  }) async {
+    if (target.length >= 4) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tối đa 4 ảnh minh chứng')),
+        const SnackBar(content: Text('Mỗi nhóm chỉ tối đa 4 ảnh')),
       );
       return;
     }
@@ -475,14 +495,126 @@ class _ReportScreenState extends State<ReportScreen> {
     if (picked == null) return;
 
     setState(() {
-      _selectedEvidenceImages.add(picked);
+      target.add(picked);
     });
   }
 
-  void _removeEvidenceImage(int index) {
+  void _removeEvidenceImage(List<XFile> target, int index) {
     setState(() {
-      _selectedEvidenceImages.removeAt(index);
+      target.removeAt(index);
     });
+  }
+
+  Widget _buildEvidenceImageCard({
+    required String title,
+    String? subtitle,
+    required List<XFile> images,
+    required VoidCallback onPickGallery,
+    required VoidCallback onPickCamera,
+    required void Function(int index) onRemove,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.photo_library_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${images.length}/4',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+            const SizedBox(height: 4),
+            const Text(
+              'Hỗ trợ: jpg, jpeg, png, webp, heic, heif. Tối đa 5MB/ảnh.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...images.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final image = entry.value;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: kIsWeb
+                            ? Image.network(
+                                image.path,
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.file(
+                                File(image.path),
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: GestureDetector(
+                          onTap: () => onRemove(index),
+                          child: const CircleAvatar(
+                            radius: 10,
+                            backgroundColor: Colors.red,
+                            child: Icon(
+                              Icons.close,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+                OutlinedButton.icon(
+                  onPressed: onPickGallery,
+                  icon: const Icon(Icons.photo_library),
+                  label: const Text('Thư viện'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onPickCamera,
+                  icon: const Icon(Icons.photo_camera),
+                  label: const Text('Camera'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildYesNoQuestion(
@@ -704,98 +836,55 @@ class _ReportScreenState extends State<ReportScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.photo_library_outlined, size: 20),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Ảnh minh chứng',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '${_selectedEvidenceImages.length}/4',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Hỗ trợ: jpg, jpeg, png, webp, heic, heif. Tối đa 5MB/ảnh.',
-                                style: TextStyle(fontSize: 12, color: Colors.black54),
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  ..._selectedEvidenceImages.asMap().entries.map((entry) {
-                                    final index = entry.key;
-                                    final image = entry.value;
-                                    return Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: kIsWeb
-                                              ? Image.network(
-                                                  image.path,
-                                                  width: 72,
-                                                  height: 72,
-                                                  fit: BoxFit.cover,
-                                                )
-                                              : Image.file(
-                                                  File(image.path),
-                                                  width: 72,
-                                                  height: 72,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                        ),
-                                        Positioned(
-                                          top: -8,
-                                          right: -8,
-                                          child: GestureDetector(
-                                            onTap: () => _removeEvidenceImage(index),
-                                            child: const CircleAvatar(
-                                              radius: 10,
-                                              backgroundColor: Colors.red,
-                                              child: Icon(
-                                                Icons.close,
-                                                size: 12,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }),
-                                  OutlinedButton.icon(
-                                    onPressed: () => _pickEvidenceImage(ImageSource.gallery),
-                                    icon: const Icon(Icons.photo_library),
-                                    label: const Text('Thư viện'),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: () => _pickEvidenceImage(ImageSource.camera),
-                                    icon: const Icon(Icons.photo_camera),
-                                    label: const Text('Camera'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                      _buildEvidenceImageCard(
+                        title: 'Ảnh minh chứng',
+                        subtitle: 'Ví dụ: ảnh triệu chứng, khu vực liên quan...',
+                        images: _selectedEvidenceImages,
+                        onPickGallery: () => _pickEvidenceImage(
+                          target: _selectedEvidenceImages,
+                          source: ImageSource.gallery,
+                        ),
+                        onPickCamera: () => _pickEvidenceImage(
+                          target: _selectedEvidenceImages,
+                          source: ImageSource.camera,
+                        ),
+                        onRemove: (index) =>
+                            _removeEvidenceImage(_selectedEvidenceImages, index),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildEvidenceImageCard(
+                        title: 'Ảnh kết quả xét nghiệm',
+                        subtitle: 'Có thể bỏ trống nếu chưa có kết quả xét nghiệm.',
+                        images: _selectedTestResultImages,
+                        onPickGallery: () => _pickEvidenceImage(
+                          target: _selectedTestResultImages,
+                          source: ImageSource.gallery,
+                        ),
+                        onPickCamera: () => _pickEvidenceImage(
+                          target: _selectedTestResultImages,
+                          source: ImageSource.camera,
+                        ),
+                        onRemove: (index) => _removeEvidenceImage(
+                          _selectedTestResultImages,
+                          index,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildEvidenceImageCard(
+                        title: 'Ảnh giấy tờ y tế',
+                        subtitle: 'Ví dụ: giấy khám, phiếu chỉ định, đơn thuốc.',
+                        images: _selectedMedicalCertImages,
+                        onPickGallery: () => _pickEvidenceImage(
+                          target: _selectedMedicalCertImages,
+                          source: ImageSource.gallery,
+                        ),
+                        onPickCamera: () => _pickEvidenceImage(
+                          target: _selectedMedicalCertImages,
+                          source: ImageSource.camera,
+                        ),
+                        onRemove: (index) => _removeEvidenceImage(
+                          _selectedMedicalCertImages,
+                          index,
                         ),
                       ),
                       const SizedBox(height: 16),

@@ -60,6 +60,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   final List<String> _selectedSymptoms = [];
   final List<String> _selectedConditions = [];
   final ImagePicker _imagePicker = ImagePicker();
+  final List<XFile> _evidenceImages = [];
   final List<XFile> _testResultImages = [];
   final List<XFile> _medicalCertImages = [];
   final List<_ContactPersonInput> _contactPersons = [];
@@ -277,6 +278,10 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
 
       if (!mounted) return;
 
+      final evidenceImageUrls = await CloudinaryUploadService.uploadImages(
+        files: _evidenceImages,
+        folder: 'safezone/reports/detailed/evidence',
+      );
       final testResultImageUrls = await CloudinaryUploadService.uploadImages(
         files: _testResultImages,
         folder: 'safezone/reports/detailed/test-result',
@@ -287,7 +292,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
       );
 
       debugPrint(
-        '[DetailedReport] Uploaded testResult=${testResultImageUrls.length}, medicalCert=${medicalCertImageUrls.length}',
+        '[DetailedReport] Uploaded evidence=${evidenceImageUrls.length}, testResult=${testResultImageUrls.length}, medicalCert=${medicalCertImageUrls.length}',
       );
 
       // Build patient info
@@ -315,6 +320,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         description: _descriptionController.text.trim(),
         lat: lat,
         lon: lon,
+        imageUrls: evidenceImageUrls.isNotEmpty ? evidenceImageUrls : null,
         reporterLat: _reporterLocation?.latitude,
         reporterLon: _reporterLocation?.longitude,
         address: _addressController.text.trim().isNotEmpty
@@ -864,6 +870,22 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
               ],
             ),
           ),
+        ),
+        const SizedBox(height: 16),
+
+        _buildEvidenceImageSection(
+          title: 'Ảnh minh chứng',
+          subtitle: 'Ví dụ: ảnh triệu chứng, đơn thuốc, khu vực liên quan...',
+          images: _evidenceImages,
+          onPickGallery: () => _pickEvidenceImage(
+            target: _evidenceImages,
+            source: ImageSource.gallery,
+          ),
+          onPickCamera: () => _pickEvidenceImage(
+            target: _evidenceImages,
+            source: ImageSource.camera,
+          ),
+          onRemove: (index) => _removeEvidenceImage(_evidenceImages, index),
         ),
         const SizedBox(height: 16),
 
