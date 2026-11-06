@@ -146,12 +146,12 @@ class _StatisticsTabState extends State<StatisticsTab> {
             const SizedBox(height: 12),
 
             // Disease Distribution
-            _buildSectionTitle('Top 5 bệnh (biểu đồ)'),
+            _buildSectionTitle('Top 5 bệnh'),
             _buildDiseaseDistribution(stats.byDisease),
             const SizedBox(height: 20),
 
             // Status Distribution
-            _buildSectionTitle('Top 5 trạng thái (biểu đồ)'),
+            _buildSectionTitle('Top 5 trạng thái'),
             _buildStatusDistribution(stats.byStatus),
             const SizedBox(height: 20),
 

@@ -22,6 +22,13 @@ import 'location_picker_widget.dart';
 import '../auth/verification_screen.dart';
 import 'detailed_case_report_screen.dart';
 
+class _DiseaseOption {
+  const _DiseaseOption({required this.value, required this.label});
+
+  final String value;
+  final String label;
+}
+
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
 
@@ -59,7 +66,9 @@ class _ReportScreenState extends State<ReportScreen> {
   LatLng? _reporterLocation; // Reporter's current location
 
   // Disease types from backend disease management
-  List<String> _diseaseTypes = ['Dengue'];
+  List<_DiseaseOption> _diseaseTypes = const [
+    _DiseaseOption(value: 'Dengue', label: 'Dengue'),
+  ];
   bool _isSubmitting = false;
   int _addressLookupToken = 0;
 
@@ -118,16 +127,25 @@ class _ReportScreenState extends State<ReportScreen> {
       final rows = response.data;
       if (rows is! List) return;
 
-      final names = rows
-          .map((item) => (item is Map ? item['name']?.toString().trim() : null))
-          .whereType<String>()
-          .where((name) => name.isNotEmpty)
+      final diseases = rows
+          .whereType<Map>()
+          .map((item) {
+            final value = item['name']?.toString().trim() ?? '';
+            final label = item['nameVi']?.toString().trim();
+            return value.isEmpty
+                ? null
+                : _DiseaseOption(
+                    value: value,
+                    label: label?.isNotEmpty == true ? label! : value,
+                  );
+          })
+          .whereType<_DiseaseOption>()
           .toList();
 
-      if (names.isEmpty || !mounted) return;
+      if (diseases.isEmpty || !mounted) return;
       setState(() {
-        _diseaseTypes = names;
-        _selectedDiseaseType ??= names.first;
+        _diseaseTypes = diseases;
+        _selectedDiseaseType ??= diseases.first.value;
       });
     } catch (_) {
       // Keep fallback list if API fails
@@ -274,10 +292,11 @@ class _ReportScreenState extends State<ReportScreen> {
         files: _selectedTestResultImages,
         folder: 'safezone/reports/quick/test-result',
       );
-      final uploadedMedicalCertUrls = await CloudinaryUploadService.uploadImages(
-        files: _selectedMedicalCertImages,
-        folder: 'safezone/reports/quick/medical-cert',
-      );
+      final uploadedMedicalCertUrls =
+          await CloudinaryUploadService.uploadImages(
+            files: _selectedMedicalCertImages,
+            folder: 'safezone/reports/quick/medical-cert',
+          );
 
       debugPrint(
         '[QuickReport] Uploaded evidence=${uploadedEvidenceUrls.length}, testResult=${uploadedTestResultUrls.length}, medicalCert=${uploadedMedicalCertUrls.length}',
@@ -305,10 +324,12 @@ class _ReportScreenState extends State<ReportScreen> {
         hasVisitedEpidemicArea: _hasVisitedEpidemicArea,
         hasSimilarCasesNearby: _hasSimilarCasesNearby,
         hasTestResult: uploadedTestResultUrls.isNotEmpty,
-        testResultImageUrls:
-          uploadedTestResultUrls.isNotEmpty ? uploadedTestResultUrls : null,
-        medicalCertImageUrls:
-          uploadedMedicalCertUrls.isNotEmpty ? uploadedMedicalCertUrls : null,
+        testResultImageUrls: uploadedTestResultUrls.isNotEmpty
+            ? uploadedTestResultUrls
+            : null,
+        medicalCertImageUrls: uploadedMedicalCertUrls.isNotEmpty
+            ? uploadedMedicalCertUrls
+            : null,
       );
 
       final success = await reportProvider.createReport(request);
@@ -364,9 +385,9 @@ class _ReportScreenState extends State<ReportScreen> {
     if (nav != null) {
       nav.push(MaterialPageRoute(builder: (_) => const MyReportsScreen()));
     } else if (mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const MyReportsScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const MyReportsScreen()));
     }
   }
 
@@ -534,10 +555,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
                 Text(
                   '${images.length}/4',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ],
             ),
@@ -792,8 +810,8 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                         items: _diseaseTypes.map((type) {
                           return DropdownMenuItem(
-                            value: type,
-                            child: Text(type),
+                            value: type.value,
+                            child: Text(type.label),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -838,7 +856,8 @@ class _ReportScreenState extends State<ReportScreen> {
 
                       _buildEvidenceImageCard(
                         title: 'Ảnh minh chứng',
-                        subtitle: 'Ví dụ: ảnh triệu chứng, khu vực liên quan...',
+                        subtitle:
+                            'Ví dụ: ảnh triệu chứng, khu vực liên quan...',
                         images: _selectedEvidenceImages,
                         onPickGallery: () => _pickEvidenceImage(
                           target: _selectedEvidenceImages,
@@ -848,13 +867,16 @@ class _ReportScreenState extends State<ReportScreen> {
                           target: _selectedEvidenceImages,
                           source: ImageSource.camera,
                         ),
-                        onRemove: (index) =>
-                            _removeEvidenceImage(_selectedEvidenceImages, index),
+                        onRemove: (index) => _removeEvidenceImage(
+                          _selectedEvidenceImages,
+                          index,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       _buildEvidenceImageCard(
                         title: 'Ảnh kết quả xét nghiệm',
-                        subtitle: 'Có thể bỏ trống nếu chưa có kết quả xét nghiệm.',
+                        subtitle:
+                            'Có thể bỏ trống nếu chưa có kết quả xét nghiệm.',
                         images: _selectedTestResultImages,
                         onPickGallery: () => _pickEvidenceImage(
                           target: _selectedTestResultImages,
@@ -872,7 +894,8 @@ class _ReportScreenState extends State<ReportScreen> {
                       const SizedBox(height: 12),
                       _buildEvidenceImageCard(
                         title: 'Ảnh giấy tờ y tế',
-                        subtitle: 'Ví dụ: giấy khám, phiếu chỉ định, đơn thuốc.',
+                        subtitle:
+                            'Ví dụ: giấy khám, phiếu chỉ định, đơn thuốc.',
                         images: _selectedMedicalCertImages,
                         onPickGallery: () => _pickEvidenceImage(
                           target: _selectedMedicalCertImages,

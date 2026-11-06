@@ -20,6 +20,13 @@ import '../../providers/auth_provider.dart';
 import 'location_picker_widget.dart';
 import '../auth/verification_screen.dart';
 
+class _DiseaseOption {
+  const _DiseaseOption({required this.value, required this.label});
+
+  final String value;
+  final String label;
+}
+
 /// Screen for detailed case report with full patient information
 class DetailedCaseReportScreen extends StatefulWidget {
   const DetailedCaseReportScreen({super.key});
@@ -69,7 +76,9 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
   LatLng? _selectedCaseLocation;
   LatLng? _reporterLocation;
 
-  List<String> _diseaseTypes = ['Dengue'];
+  List<_DiseaseOption> _diseaseTypes = const [
+    _DiseaseOption(value: 'Dengue', label: 'Dengue'),
+  ];
   int _addressLookupToken = 0;
 
   // Common symptoms
@@ -122,16 +131,25 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
       final rows = response.data;
       if (rows is! List) return;
 
-      final names = rows
-          .map((item) => (item is Map ? item['name']?.toString().trim() : null))
-          .whereType<String>()
-          .where((name) => name.isNotEmpty)
+      final diseases = rows
+          .whereType<Map>()
+          .map((item) {
+            final value = item['name']?.toString().trim() ?? '';
+            final label = item['nameVi']?.toString().trim();
+            return value.isEmpty
+                ? null
+                : _DiseaseOption(
+                    value: value,
+                    label: label?.isNotEmpty == true ? label! : value,
+                  );
+          })
+          .whereType<_DiseaseOption>()
           .toList();
 
-      if (names.isEmpty || !mounted) return;
+      if (diseases.isEmpty || !mounted) return;
       setState(() {
-        _diseaseTypes = names;
-        _selectedDiseaseType ??= names.first;
+        _diseaseTypes = diseases;
+        _selectedDiseaseType ??= diseases.first.value;
       });
     } catch (_) {
       // Keep fallback list if API fails
@@ -332,10 +350,12 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
         reporterConsent: _reporterConsent,
         deviceId: await StorageUtils.getOrCreateDeviceId(),
         hasTestResult: testResultImageUrls.isNotEmpty,
-        testResultImageUrls:
-          testResultImageUrls.isNotEmpty ? testResultImageUrls : null,
-        medicalCertImageUrls:
-          medicalCertImageUrls.isNotEmpty ? medicalCertImageUrls : null,
+        testResultImageUrls: testResultImageUrls.isNotEmpty
+            ? testResultImageUrls
+            : null,
+        medicalCertImageUrls: medicalCertImageUrls.isNotEmpty
+            ? medicalCertImageUrls
+            : null,
         patientInfo: patientInfo,
       );
 
@@ -582,7 +602,7 @@ class _DetailedCaseReportScreenState extends State<DetailedCaseReportScreen> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
           items: _diseaseTypes.map((type) {
-            return DropdownMenuItem(value: type, child: Text(type));
+            return DropdownMenuItem(value: type.value, child: Text(type.label));
           }).toList(),
           onChanged: (value) => setState(() => _selectedDiseaseType = value),
           validator: (value) {

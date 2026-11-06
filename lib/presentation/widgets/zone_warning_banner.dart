@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
-import '../../core/services/zone_alert_audio_service.dart';
+import '../../core/services/push_notification_service.dart';
 import '../../data/models/report_model.dart';
 import '../providers/zone_provider.dart';
 import '../providers/location_provider.dart';
@@ -28,6 +29,12 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
   String? _lastNearbyLocationKey;
   List<ReportModel> _nearbyCaseReports = const [];
 
+  Timer? _periodicZoneWarningTimer;
+  String? _activeZoneWarningKey;
+  List<EpidemicZone> _zonesForPeriodicWarnings = const [];
+
+  final Set<String> _subscribedZoneTopics = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -43,8 +50,8 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
 
   @override
   void dispose() {
+    _periodicZoneWarningTimer?.cancel();
     _animationController.dispose();
-    ZoneAlertAudioService.instance.stop();
     super.dispose();
   }
 
@@ -122,6 +129,11 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
 
         final containingZones = _getZonesContainingUser(userLocation, zones);
 
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _syncZoneTopicSubscriptions(containingZones);
+          _syncPeriodicZoneWarnings(containingZones);
+        });
+
         if (userLocation != null) {
           _scheduleNearbyCaseCheck(userLocation);
         }
@@ -131,14 +143,10 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
         }
 
         if (containingZones.isEmpty && _nearbyCaseReports.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ZoneAlertAudioService.instance.announceHighestRisk(
-              highestRisk: ZoneRiskLevel.medium,
-              zoneCount: _nearbyCaseReports.length,
-            );
-          });
-
-          final nearestDistanceKm = _nearestCaseDistanceKm(userLocation, _nearbyCaseReports);
+          final nearestDistanceKm = _nearestCaseDistanceKm(
+            userLocation,
+            _nearbyCaseReports,
+          );
           final caseCount = _nearbyCaseReports.length;
           return Material(
             elevation: 3,
@@ -154,12 +162,18 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
                 bottom: false,
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.white,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Có $caseCount ca bệnh trong bán kính 5km${nearestDistanceKm == null ? '' : ' (gần nhất ${nearestDistanceKm.toStringAsFixed(1)}km)'}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -171,13 +185,6 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
 
         final highestRiskZone = containingZones.first;
         final bannerColor = _getBannerColor(highestRiskZone.riskLevel);
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ZoneAlertAudioService.instance.announceHighestRisk(
-            highestRisk: highestRiskZone.riskLevel,
-            zoneCount: containingZones.length,
-          );
-        });
 
         return AnimatedBuilder(
           animation: _pulseAnimation,
@@ -196,10 +203,7 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
               width: double.infinity,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    bannerColor,
-                    bannerColor.withOpacity(0.85),
-                  ],
+                  colors: [bannerColor, bannerColor.withOpacity(0.85)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -314,13 +318,97 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
     );
   }
 
+  String _zoneWarningKey(List<EpidemicZone> zones) {
+    if (zones.isEmpty) return '';
+    return zones.map((z) => z.id).join(',');
+  }
+
+  void _syncPeriodicZoneWarnings(List<EpidemicZone> containingZones) {
+    final key = _zoneWarningKey(containingZones);
+    _zonesForPeriodicWarnings = List<EpidemicZone>.from(containingZones);
+
+    if (key.isEmpty) {
+      _activeZoneWarningKey = null;
+      _periodicZoneWarningTimer?.cancel();
+      _periodicZoneWarningTimer = null;
+      return;
+    }
+
+    final enteringNewZoneSet = _activeZoneWarningKey != key;
+    _activeZoneWarningKey = key;
+
+    if (enteringNewZoneSet) {
+      _sendZoneWarningNotification();
+    }
+
+    _periodicZoneWarningTimer ??= Timer.periodic(
+      const Duration(minutes: 30),
+      (_) => _sendZoneWarningNotification(),
+    );
+  }
+
+  void _sendZoneWarningNotification() {
+    final zones = _zonesForPeriodicWarnings;
+    if (zones.isEmpty) return;
+
+    final highest = zones.first;
+    final zoneNames = zones.take(3).map((z) => z.name).join(', ');
+    final more = zones.length > 3 ? ' +${zones.length - 3} vùng khác' : '';
+
+    PushNotificationService().showLocalNotification(
+      id: 9001,
+      title: '⚠️ CẢNH BÁO VÙNG DỊCH',
+      body:
+          'Bạn vẫn đang ở trong vùng dịch (${highest.riskLevel.displayName}). $zoneNames$more',
+      type: 'epidemic_warning',
+      data: {
+        'type': 'epidemic_warning',
+        'zoneIds': zones.map((z) => z.id).toList(),
+      },
+    );
+  }
+
+  String _zoneTopic(String zoneId) => 'zone_$zoneId';
+
+  Future<void> _syncZoneTopicSubscriptions(
+    List<EpidemicZone> containingZones,
+  ) async {
+    final desired = containingZones.map((z) => _zoneTopic(z.id)).toSet();
+
+    final toSubscribe = desired.difference(_subscribedZoneTopics);
+    final toUnsubscribe = _subscribedZoneTopics.difference(desired);
+
+    if (toSubscribe.isEmpty && toUnsubscribe.isEmpty) return;
+
+    final push = PushNotificationService();
+
+    for (final topic in toSubscribe) {
+      try {
+        await push.subscribeToTopic(topic);
+        _subscribedZoneTopics.add(topic);
+      } catch (_) {
+        // Best-effort; do not break UI.
+      }
+    }
+
+    for (final topic in toUnsubscribe) {
+      try {
+        await push.unsubscribeFromTopic(topic);
+        _subscribedZoneTopics.remove(topic);
+      } catch (_) {
+        // Best-effort; do not break UI.
+      }
+    }
+  }
+
   Future<void> _scheduleNearbyCaseCheck(LatLng userLocation) async {
     if (_isCheckingNearbyCases) return;
 
     final locationKey =
         '${userLocation.latitude.toStringAsFixed(3)}_${userLocation.longitude.toStringAsFixed(3)}';
     final now = DateTime.now();
-    final recentlyChecked = _lastNearbyCaseCheckAt != null &&
+    final recentlyChecked =
+        _lastNearbyCaseCheckAt != null &&
         now.difference(_lastNearbyCaseCheckAt!).inSeconds < 30;
     if (recentlyChecked && locationKey == _lastNearbyLocationKey) return;
 
@@ -340,8 +428,8 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
       final list = raw is List
           ? raw
           : raw is Map<String, dynamic>
-              ? (raw['data'] ?? raw['items'] ?? []) as List<dynamic>
-              : <dynamic>[];
+          ? (raw['data'] ?? raw['items'] ?? []) as List<dynamic>
+          : <dynamic>[];
       final reports = list
           .whereType<Map<String, dynamic>>()
           .map(ReportModel.fromJson)
@@ -363,7 +451,10 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
     }
   }
 
-  double? _nearestCaseDistanceKm(LatLng? userLocation, List<ReportModel> reports) {
+  double? _nearestCaseDistanceKm(
+    LatLng? userLocation,
+    List<ReportModel> reports,
+  ) {
     if (userLocation == null || reports.isEmpty) return null;
     final distance = const Distance();
     var minMeters = double.infinity;
@@ -449,7 +540,7 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
 
   Widget _buildSafetyTips(EpidemicZone zone) {
     final tips = _getSafetyTips(zone.diseaseType, zone.riskLevel);
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -497,7 +588,10 @@ class _ZoneWarningBannerState extends State<ZoneWarningBanner>
     );
   }
 
-  List<String> _getSafetyTips(DiseaseType diseaseType, ZoneRiskLevel riskLevel) {
+  List<String> _getSafetyTips(
+    DiseaseType diseaseType,
+    ZoneRiskLevel riskLevel,
+  ) {
     switch (diseaseType) {
       case DiseaseType.dengue:
         return [

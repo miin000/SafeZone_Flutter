@@ -1,9 +1,10 @@
 // API Constants
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 
 class ApiConstants {
   ApiConstants._();
+
+  static const String _defaultPublicBaseUrl =
+      'https://safezone-be.onrender.com/api/v1';
 
   static String get baseUrl {
     // Allow overriding API URL at build/run time:
@@ -12,29 +13,21 @@ class ApiConstants {
     const explicitBaseUrl = String.fromEnvironment('API_BASE_URL');
     if (explicitBaseUrl.isNotEmpty) return explicitBaseUrl;
 
-    const apiScheme = String.fromEnvironment('API_SCHEME', defaultValue: 'http');
+    const apiScheme = String.fromEnvironment(
+      'API_SCHEME',
+      defaultValue: 'http',
+    );
     const apiHost = String.fromEnvironment('API_HOST');
     const apiPort = int.fromEnvironment('API_PORT', defaultValue: 3002);
     if (apiHost.isNotEmpty) return '$apiScheme://$apiHost:$apiPort/api/v1';
 
-    // Web should use the current host to avoid dart:io Platform checks
-    if (kIsWeb) {
-      final scheme = Uri.base.scheme; // http or https
-      final host = Uri.base.host; // e.g., localhost or domain
-      // Prefer explicit API port (3002) used by NestJS backend
-      return '$scheme://$host:3002/api/v1';
-    }
-
-    // Android emulator uses 10.0.2.2 to access host machine
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:3002/api/v1';
-    }
-
-    // iOS simulator / other platforms use localhost
-    return 'http://localhost:3002/api/v1';
+    // Default: use public backend.
+    // For local development, pass --dart-define=API_BASE_URL=... (recommended)
+    // or --dart-define=API_HOST=... to override.
+    return _defaultPublicBaseUrl;
   }
 
-// Timeout durations
+  // Timeout durations
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration sendTimeout = Duration(seconds: 30);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 // Screens
@@ -12,7 +13,8 @@ import 'package:mobile_flutter/presentation/screens/splash/splash_screen.dart';
 
 // Providers
 import 'package:mobile_flutter/presentation/providers/auth_provider.dart';
-export 'package:mobile_flutter/presentation/providers/auth_provider.dart' show AuthStatus;
+export 'package:mobile_flutter/presentation/providers/auth_provider.dart'
+    show AuthStatus;
 import 'package:mobile_flutter/presentation/providers/report_provider.dart';
 import 'package:mobile_flutter/presentation/providers/settings_provider.dart';
 import 'package:mobile_flutter/presentation/providers/post_provider.dart';
@@ -24,6 +26,7 @@ import 'package:mobile_flutter/presentation/providers/health_info_provider.dart'
 import 'package:mobile_flutter/data/models/settings_model.dart';
 import 'package:mobile_flutter/presentation/providers/main_tab_provider.dart';
 import 'package:mobile_flutter/core/navigation/app_navigator.dart';
+import 'package:mobile_flutter/core/services/push_notification_service.dart';
 
 // Widgets
 import 'package:mobile_flutter/presentation/widgets/zone_warning_banner.dart';
@@ -121,6 +124,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
     super.initState();
     // Check auth status on app start
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!kIsWeb) {
+        PushNotificationService().initialize();
+      }
       context.read<AuthProvider>().checkAuthStatus();
 
       // Initialize mock data - chỉ khi app khởi động
@@ -137,7 +143,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
       // Update current user in PostProvider
       if (authProvider.user != null) {
         postProvider.setCurrentUser(authProvider.user);
-        print('Updated PostProvider with current user: ${authProvider.user?.name}');
+        print(
+          'Updated PostProvider with current user: ${authProvider.user?.name}',
+        );
       }
 
       // Load posts from API/database instead of using mock data
@@ -229,26 +237,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Trang chủ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Bản đồ',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Bản đồ'),
           BottomNavigationBarItem(
             icon: Icon(Icons.notifications),
             label: 'Thông báo',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.report),
-            label: 'Báo cáo',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Cá nhân',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.report), label: 'Báo cáo'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
         ],
       ),
     );

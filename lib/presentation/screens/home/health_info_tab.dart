@@ -17,6 +17,21 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   String _selectedCategory = 'Tất cả';
   String _selectedDisease = 'Tất cả';
 
+  static const Map<String, String> _categoryLabelVi = {
+    'disease_prevention': 'Phòng chống dịch bệnh',
+    'vaccination': 'Tiêm chủng',
+    'community_health': 'Sức khỏe cộng đồng',
+    'medical_guidance': 'Hướng dẫn y tế',
+    'news': 'Tin tức',
+  };
+
+  String _displayCategory(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return raw;
+    if (v == 'Tất cả') return v;
+    return _categoryLabelVi[v] ?? v;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -137,7 +152,13 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                               isDense: true,
                             ),
                             items: categories
-                                .map((v) => DropdownMenuItem(value: v, child: Text(v, overflow: TextOverflow.ellipsis)))
+                                .map((v) => DropdownMenuItem(
+                                      value: v,
+                                      child: Text(
+                                        _displayCategory(v),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ))
                                 .toList(),
                             onChanged: (v) => setState(() => _selectedCategory = v ?? 'Tất cả'),
                           ),
@@ -245,7 +266,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        healthInfo.category!,
+                        _displayCategory(healthInfo.category!),
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.blue[700],
